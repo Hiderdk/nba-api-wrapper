@@ -41,13 +41,6 @@ class NBAApi:
         play_by_play_data = PlayByPlayV2(game_id=game_id)
         return play_by_play_data.get_data_frames()[0]
 
-
-    @retry_on_error
-    @api_throttle
-    def get_shot_data_by_game_id(self, game_id: int) -> pd.DataFrame:
-
-
-
     @retry_on_error
     @api_throttle
     def get_rotations_by_game_id(self, game_id: int) -> list[pd.DataFrame]:

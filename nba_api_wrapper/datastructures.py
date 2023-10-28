@@ -35,40 +35,6 @@ class GameTeam:
 
 
 @dataclass
-class PlayByPlay:
-    team_id: int
-
-
-
-@dataclass
-class Rotation:
-    team_id: int
-
-@dataclass
-class TeamPossession:
-    period: int
-    seconds_remaining: int
-    duration: int
-    team_id: int
-    in_possession: bool
-    prior_play_ending: Literal['shot_miss', "rebound", "rebound_opponent", "score", "score_opponent", "foul", "foul_opponent", None]
-    lineup: list[int]
-    lineup_opponent: list[int]
-    points: int
-    points_opponent: int
-    three_pointers_shot: int
-    two_pointers_shot: int
-    three_pointers_shot_opponent: int
-    two_pointers_shot_opponent: int
-    fouls: int
-    fouls_opponent: int
-    rebounds: int
-    rebounds_opponent: int
-
-
-
-
-@dataclass
 class Game:
     id: str
     start_date: datetime.date
@@ -78,10 +44,10 @@ class Game:
 
 
 @dataclass
-class Possessions:
+class PlayByPlay:
     play_by_plays: pd.DataFrame
+    shot_plays: pd.DataFrame
     team_rotations: list[pd.DataFrame]
     inplay_lineups: pd.DataFrame
-    posessions: pd.DataFrame
-    play_lineups: list[pd.DataFrame]
+    transformed_play_by_plays: pd.DataFrame
 

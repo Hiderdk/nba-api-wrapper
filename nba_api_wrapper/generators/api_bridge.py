@@ -8,8 +8,9 @@ from nba_api_wrapper.api.api_calls import NBAApi
 from nba_api_wrapper.api.data_models import LGFDataNames, BoxscoreV2Names, PlayByPlay2Names, RotationNames
 from nba_api_wrapper.config import SUPPORTED_TEAM_NAMES
 
-from nba_api_wrapper.datastructures import Possessions, Game, GameTeam, GamePlayer
-from nba_api_wrapper.generators.data_generators import generate_inplay_lineups
+from nba_api_wrapper.datastructures import PlayByPlay, Game, GameTeam, GamePlayer
+from nba_api_wrapper.generators.dataframe_generators import generate_inplay_lineups, generate_shot_plays, \
+    generate_transformed_play_by_plays
 
 BOX = BoxscoreV2Names
 LFG = LGFDataNames
@@ -55,7 +56,7 @@ class ApiBridge():
             season_id=int(league_game_rows[LFG.SEASON_ID].iloc[0])
         )
 
-    def generate_play_by_play(self, game_id: int) -> Possessions:
+    def generate_play_by_play(self, game_id: int) -> PlayByPlay:
         play_by_plays = self.nba_api.get_play_by_play_by_game_id(game_id=game_id)
         play_by_plays = (
             play_by_plays.assign(
@@ -84,14 +85,17 @@ class ApiBridge():
             team_rotations[idx][RN.IN_TIME_SECONDS_PLAYED] = team_rotations[idx][RN.IN_TIME_REAL] / 10
             team_rotations[idx][RN.OUT_TIME_SECONDS_PLAYED] = team_rotations[idx][RN.OUT_TIME_REAL] / 10
         inplay_lineups = generate_inplay_lineups(team_rotations=team_rotations)
+        shot_plays = generate_shot_plays(play_by_plays=play_by_plays, inplay_lineups=inplay_lineups)
+        transformed_play_by_plays = generate_transformed_play_by_plays(play_by_plays=play_by_plays,
+                                                                       inplay_lineups=inplay_lineups)
 
-        return Possessions(
+        return PlayByPlay(
             team_rotations=team_rotations,
             inplay_lineups=inplay_lineups,
             play_by_plays=play_by_plays,
-
+            shot_plays=shot_plays,
+            transformed_play_by_plays=transformed_play_by_plays,
         )
-
 
     def _generate_game_team(self, league_game_rows: pd.DataFrame, boxscore: pd.DataFrame) -> list[GameTeam]:
         game_teams: list[GameTeam] = []
