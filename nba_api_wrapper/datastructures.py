@@ -33,14 +33,12 @@ class GameTeam:
     players: Optional[list[GamePlayer]] = None
 
 
-
 @dataclass
-class Game:
+class Boxscore:
     id: str
-    start_date: datetime.date
-    season_id: int
-    minutes: float
-    teams: list[GameTeam]
+    game_teams: pd.DataFrame
+    game_players: pd.DataFrame
+    game: pd.DataFrame
 
 
 @dataclass
@@ -49,5 +47,6 @@ class PlayByPlay:
     shot_plays: pd.DataFrame
     team_rotations: list[pd.DataFrame]
     inplay_lineups: pd.DataFrame
-    transformed_play_by_plays: pd.DataFrame
-
+    lineup_play_by_plays: pd.DataFrame
+    offense_player_play_by_plays: pd.DataFrame
+    defense_player_play_by_plays: pd.DataFrame

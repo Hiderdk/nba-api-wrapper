@@ -1,12 +1,10 @@
 import datetime
-import os.path
 
-from typing import Tuple
 import logging
 
 import pandas as pd
 
-from nba_api_wrapper.api.data_models import LGFDataNames
+from nba_api_wrapper.data_models import LGFDataNames
 from nba_api_wrapper.dataclass import Game
 from nba_api_wrapper.generators.api_bridge import ApiBridge
 
@@ -39,7 +37,7 @@ class NBAData:
 
         for game_id in game_ids:
 
-            game = self.api_bridge.generate_game(league_games=league_games, game_id=game_id)
+            game = self.api_bridge.generate_boxscore(league_games=league_games, game_id=game_id)
 
             if len(game.teams) != 2:
                 logging.warning(f"incorrect team count for gameid {game_id} - continuing")
