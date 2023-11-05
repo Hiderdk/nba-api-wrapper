@@ -12,7 +12,7 @@ from nba_api_wrapper.generators.boxscore_generators import generate_game_players
 
 from nba_api_wrapper.generators.play_by_play_generators import generate_inplay_lineups, generate_shot_plays, \
     generate_offense_player_play_by_plays, generate_defense_player_play_by_plays, \
-    generate_lineup_possession_attempts
+    generate_possession_attempts, generate_possession_from_attempts
 
 BOX = BoxscoreV2Names
 LFG = LGFDataNames
@@ -90,13 +90,15 @@ class ApiBridge():
             team_rotations[idx][RN.OUT_TIME_SECONDS_PLAYED] = team_rotations[idx][RN.OUT_TIME_REAL] / 10
         inplay_lineups = generate_inplay_lineups(team_rotations=team_rotations)
         shot_plays = generate_shot_plays(play_by_plays=play_by_plays, inplay_lineups=inplay_lineups)
-        lineup_play_by_plays, play_by_plays = generate_lineup_possession_attempts(play_by_plays=play_by_plays,
-                                                                                  inplay_lineups=inplay_lineups)
+        possession_attempts, play_by_plays = generate_possession_attempts(play_by_plays=play_by_plays,
+                                                                           inplay_lineups=inplay_lineups)
+
+        possessions = generate_possession_from_attempts(possession_attempts=possession_attempts)
 
         defense_player_play_by_plays = generate_defense_player_play_by_plays(play_by_plays=play_by_plays,
-                                                                             lineup_play_by_plays=lineup_play_by_plays)
+                                                                             possession_attempts=possession_attempts)
         offense_player_play_by_plays = generate_offense_player_play_by_plays(play_by_plays=play_by_plays,
-                                                                             lineup_play_by_plays=lineup_play_by_plays)
+                                                                             possession_attempts=possession_attempts)
 
 
         return PlayByPlay(
@@ -104,7 +106,7 @@ class ApiBridge():
             inplay_lineups=inplay_lineups,
             play_by_plays=play_by_plays,
             shot_plays=shot_plays,
-            lineup_play_by_plays=lineup_play_by_plays,
+            lineup_play_by_plays=possession_attempts,
             offense_player_play_by_plays=offense_player_play_by_plays,
             defense_player_play_by_plays=defense_player_play_by_plays,
         )
