@@ -92,7 +92,13 @@ def generate_game_players(boxscore: pd.DataFrame) -> pd.DataFrame:
         GP.THREE_POINTERS_MADE: [],
         GP.THREE_POINTERS_ATTEMPTED: [],
         GP.TWO_POINTERS_MADE: [],
-        GP.TWO_POINTERS_ATTEMPTED: []
+        GP.TWO_POINTERS_ATTEMPTED: [],
+        GP.TURNOVERS: [],
+        GP.STEALS: [],
+        GP.ASSISTS: [],
+        GP.BLOCKS: [],
+        GP.DEFENSIVE_REBOUNDS: [],
+        GP.OFFENSIVE_REBOUNDS: [],
     }
     for _, row in boxscore.iterrows():
         game_player_dict[GP.TEAM_ID].append(row[BOX.TEAM_ID])
@@ -107,5 +113,11 @@ def generate_game_players(boxscore: pd.DataFrame) -> pd.DataFrame:
         game_player_dict[GP.PLUS_MINUS].append(row[BOX.PLAYER_NAME])
         game_player_dict[GP.MINUTES].append(_get_minutes_played(box_row=row))
         game_player_dict[GP.POINTS].append(row[BOX.PTS])
+        game_player_dict[GP.STEALS].append(row[BOX.STL])
+        game_player_dict[GP.ASSISTS].append(row[BOX.AST])
+        game_player_dict[GP.BLOCKS].append(row[BOX.BLK])
+        game_player_dict[GP.TURNOVERS].append(row[BOX.TO])
+        game_player_dict[GP.OFFENSIVE_REBOUNDS].append(row[BOX.OREB])
+        game_player_dict[GP.DEFENSIVE_REBOUNDS].append(row[BOX.DREB])
 
     return pd.DataFrame.from_dict(game_player_dict)
