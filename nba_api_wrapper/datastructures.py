@@ -50,3 +50,4 @@ class PlayByPlay:
     lineup_play_by_plays: pd.DataFrame
     offense_player_play_by_plays: pd.DataFrame
     defense_player_play_by_plays: pd.DataFrame
+    possessions: pd.DataFrame

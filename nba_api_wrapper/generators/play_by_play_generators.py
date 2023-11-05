@@ -5,7 +5,7 @@ import pandas as pd
 
 from nba_api_wrapper.data_models import RotationNames, TeamPossessionNames, TeamInPlayLineupNames, \
     ShotPlaysNames, PlayByPlay2Names, LineupPlayByPlaysNames, PlayerOffensePlayByPlaysNames, \
-    PlayerDefensePlayByPlaysNames
+    PlayerDefensePlayByPlaysNames, PosessionNames
 
 RN = RotationNames
 TP = TeamPossessionNames
@@ -15,6 +15,7 @@ PBP = PlayByPlay2Names
 LPBP = LineupPlayByPlaysNames
 POPBP = PlayerOffensePlayByPlaysNames
 PDPBP = PlayerDefensePlayByPlaysNames
+PN = PosessionNames
 
 
 def _get_play_type_by_row(text_description: str, row: pd.Series) -> Optional[str]:
@@ -101,9 +102,10 @@ def _get_offense_team_id(play_type: str, row: pd.Series, home_team_id, away_team
 
 
 def generate_offense_player_play_by_plays(play_by_plays: pd.DataFrame,
-                                          possession_attempts: pd.DataFrame) -> pd.DataFrame:
+                                          possessions: pd.DataFrame) -> pd.DataFrame:
     offense_player_play_by_plays = {
         POPBP.POINTS: [],
+        POPBP.POSSESSION_ID: [],
         #  POPBP.ASSISTS: [],
         POPBP.FOULS: [],
         POPBP.REBOUNDS: [],
@@ -111,7 +113,7 @@ def generate_offense_player_play_by_plays(play_by_plays: pd.DataFrame,
         POPBP.TEAM_ID: [],
     }
     tot_points = 0
-    for lineup_idx, row in possession_attempts.iterrows():
+    for lineup_idx, row in possessions.iterrows():
 
         defensive_players = row[LPBP.LINEUP_OFFENSE]
 
@@ -119,7 +121,7 @@ def generate_offense_player_play_by_plays(play_by_plays: pd.DataFrame,
 
             play_rows = play_by_plays[
                 (play_by_plays[PBP.PLAYER1_ID] == player_id) &
-                (play_by_plays[PBP.POSSESSION_ATTEMPT_ID] == row[LPBP.POSSESSION_ATTEMPT_ID])
+                (play_by_plays[PBP.POSSESSION_ID] == row[LPBP.POSSESSION_ID])
 
                 ]
 
@@ -166,9 +168,8 @@ def generate_offense_player_play_by_plays(play_by_plays: pd.DataFrame,
                     elif play_row[PBP.SCORE]:
                         points += 2
                         tot_points += 2
-                    else:
-                        i = 2
 
+            offense_player_play_by_plays[POPBP.POSSESSION_ID].append(row[LPBP.POSSESSION_ID])
             offense_player_play_by_plays[POPBP.FOULS].append(fouls)
             offense_player_play_by_plays[POPBP.POINTS].append(points)
             offense_player_play_by_plays[POPBP.REBOUNDS].append(rebounds)
@@ -179,9 +180,9 @@ def generate_offense_player_play_by_plays(play_by_plays: pd.DataFrame,
 
 
 def generate_defense_player_play_by_plays(play_by_plays: pd.DataFrame,
-                                          possession_attempts: pd.DataFrame) -> pd.DataFrame:
+                                          possessions: pd.DataFrame) -> pd.DataFrame:
     defense_player_play_by_plays = {
-        PDPBP.FOULS: [],
+        PDPBP.POSSESSION_ID: [],
         PDPBP.STEALS: [],
         PDPBP.BLOCKS: [],
         PDPBP.REBOUNDS: [],
@@ -191,7 +192,7 @@ def generate_defense_player_play_by_plays(play_by_plays: pd.DataFrame,
 
     player_defensive_rebounds = {p: 0 for p in play_by_plays[PBP.PLAYER1_ID].unique().tolist()}
 
-    for lineup_idx, row in possession_attempts.iterrows():
+    for lineup_idx, row in possessions.iterrows():
 
         defensive_players = row[LPBP.LINEUP_DEFENSE]
         team_id_defense = row[LPBP.TEAM_ID_DEFENSE]
@@ -199,13 +200,13 @@ def generate_defense_player_play_by_plays(play_by_plays: pd.DataFrame,
 
             play_rows = play_by_plays[
                 (play_by_plays[PBP.PLAYER1_ID] == player_id) &
-                (play_by_plays[PBP.POSSESSION_ATTEMPT_ID] == row[LPBP.POSSESSION_ATTEMPT_ID]) &
+                (play_by_plays[PBP.POSSESSION_ID] == row[LPBP.POSSESSION_ID]) &
                 (play_by_plays[PBP.PLAYER1_TEAM_ID] == team_id_defense) |
                 (play_by_plays[PBP.PLAYER2_ID] == player_id) &
-                (play_by_plays[PBP.POSSESSION_ATTEMPT_ID] == row[LPBP.POSSESSION_ATTEMPT_ID]) &
+                (play_by_plays[PBP.POSSESSION_ID] == row[LPBP.POSSESSION_ID]) &
                 (play_by_plays[PBP.PLAYER2_TEAM_ID] == team_id_defense) |
                 (play_by_plays[PBP.PLAYER3_ID] == player_id) &
-                (play_by_plays[PBP.POSSESSION_ATTEMPT_ID] == row[LPBP.POSSESSION_ATTEMPT_ID]) &
+                (play_by_plays[PBP.POSSESSION_ID] == row[LPBP.POSSESSION_ID]) &
                 (play_by_plays[PBP.PLAYER3_TEAM_ID] == team_id_defense)
                 ]
 
@@ -254,7 +255,7 @@ def generate_defense_player_play_by_plays(play_by_plays: pd.DataFrame,
                 elif play_type == 'block':
                     blocks += 1
 
-            defense_player_play_by_plays[PDPBP.FOULS].append(fouls)
+            defense_player_play_by_plays[PDPBP.POSSESSION_ID].append(row[LPBP.POSSESSION_ID])
             defense_player_play_by_plays[PDPBP.STEALS].append(steals)
             defense_player_play_by_plays[PDPBP.BLOCKS].append(blocks)
             defense_player_play_by_plays[PDPBP.REBOUNDS].append(rebounds)
@@ -265,13 +266,22 @@ def generate_defense_player_play_by_plays(play_by_plays: pd.DataFrame,
 
 
 def generate_possession_from_attempts(possession_attempts: pd.DataFrame) -> pd.DataFrame:
-    possessions = possession_attempts.groupby(
-        [LPBP.POSSESSION_ID, LPBP.TEAM_ID_OFFENSE, LPBP.TEAM_ID_DEFENSE, LPBP.LINEUP_OFFENSE, LPBP.LINEUP_DEFENSE]).agg(
-        {LPBP.POINTS: 'sum',
-         LPBP.ATTEMPT_SECONDS_PLAYED_END: 'max',
-         LPBP.SCORE_OFFENSE: 'min',
-         LPBP.SCORE_DEFENSE: 'min'
-         }).reset_index()
+    possessions = (possession_attempts
+                   .groupby(
+        [LPBP.POSSESSION_ID, LPBP.TEAM_ID_OFFENSE, LPBP.TEAM_ID_DEFENSE, LPBP.LINEUP_OFFENSE, LPBP.LINEUP_DEFENSE,
+         LPBP.SECONDS_PLAYED_START]).agg(
+        {
+            LPBP.POINTS: 'sum',
+            LPBP.FREE_THROW_ATTEMPTS: 'sum',
+            LPBP.FIELD_GOAL_ATTEMPTS: 'sum',
+            LPBP.SECONDS_PLAYED_END: 'max',
+            LPBP.SCORE_OFFENSE: 'min',
+            LPBP.SCORE_DEFENSE: 'min'
+        }
+    )
+                   .reset_index()
+                   .drop_duplicates(subset=[LPBP.POSSESSION_ID, LPBP.TEAM_ID_OFFENSE, LPBP.TEAM_ID_DEFENSE])
+                   )
 
     return possessions
 
@@ -286,10 +296,11 @@ def generate_possession_attempts(play_by_plays: pd.DataFrame,
         LPBP.SCORE_DEFENSE: [],
         LPBP.LINEUP_OFFENSE: [],
         LPBP.LINEUP_DEFENSE: [],
-        LPBP.POSSESSION_SECONDS_PLAYED_START: [],
-        LPBP.ATTEMPT_SECONDS_PLAYED_START: [],
-        LPBP.ATTEMPT_SECONDS_PLAYED_END: [],
+        LPBP.SECONDS_PLAYED_START: [],
+        LPBP.SECONDS_PLAYED_END: [],
+        LPBP.FIELD_GOAL_ATTEMPTS: [],
         LPBP.POINTS: [],
+        LPBP.FREE_THROW_ATTEMPTS: [],
         LPBP.TEAM_ID_DEFENSE: [],
         #   LPBP.TEAM_PREV_POSSESION: [],
         LPBP.PLAY_END_REASON: [],
@@ -320,6 +331,8 @@ def generate_possession_attempts(play_by_plays: pd.DataFrame,
     possession_attempt_id = 1
     possession_id = 1
     points = 0
+    field_goal_attempts = 0
+    free_throw_attempts = 0
     player_defensive_rebounds = {p: 0 for p in play_by_plays[PBP.PLAYER1_ID].unique().tolist()}
 
     for idx, row in play_by_plays.iterrows():
@@ -334,6 +347,9 @@ def generate_possession_attempts(play_by_plays: pd.DataFrame,
             possession_attempt_start_seconds_played = seconds_played
 
         defensive_rebound = False
+
+        if 'Jump Ball' in description:
+            possession_attempt_start_seconds_played = seconds_played
 
         if play_type in ('miss',
                          'score', 'steal', 'turnover', 'end', 'offensive foul',
@@ -355,6 +371,11 @@ def generate_possession_attempts(play_by_plays: pd.DataFrame,
                         team_id_defense = away_team_id
                     player_defensive_rebounds[player1_id] = new_rebound_player
 
+                elif row[PBP.HOMEDESCRIPTION] and 'rebound' in row[PBP.HOMEDESCRIPTION] and play_by_plays.iloc[idx - 1][
+                    PBP.VISITORDESCRIPTION] and 'MISS' in \
+                        play_by_plays.iloc[idx - 1][PBP.VISITORDESCRIPTION]:
+                    defensive_rebound = True
+
 
                 elif row[PBP.VISITORDESCRIPTION] and 'REBOUND' in row[PBP.VISITORDESCRIPTION]:
 
@@ -368,6 +389,10 @@ def generate_possession_attempts(play_by_plays: pd.DataFrame,
                         team_id_defense = home_team_id
                     player_defensive_rebounds[player1_id] = new_rebound_player
 
+                elif row[PBP.VISITORDESCRIPTION] and 'Rebound' in row[PBP.VISITORDESCRIPTION] and \
+                        play_by_plays.iloc[idx - 1][PBP.HOMEDESCRIPTION] and 'MISS' in \
+                        play_by_plays.iloc[idx - 1][PBP.HOMEDESCRIPTION]:
+                    defensive_rebound = True
 
             else:
                 team_id_offense = _get_offense_team_id(row=row, play_type=play_type, home_team_id=home_team_id,
@@ -390,6 +415,9 @@ def generate_possession_attempts(play_by_plays: pd.DataFrame,
                 lineup = lineup_row[TIPL.LINEUP].tolist()[0]
                 lineup_defense = lineup_row[TIPL.LINEUP_OPPONENT].tolist()[0]
 
+            if play_type == 'miss' and 'Free Throw' not in description:
+                field_goal_attempts += 1
+
             if play_type == "score":
                 away_score = int(row['SCORE'].split(" -")[0])
                 home_score = int(row['SCORE'].split("- ")[1])
@@ -400,17 +428,23 @@ def generate_possession_attempts(play_by_plays: pd.DataFrame,
                 if row[PBP.HOMEDESCRIPTION]:
                     if 'Free Throw' in description:
                         prev_home_score -= 1
+                        free_throw_attempts += 1
                     elif '3PT' in description:
                         prev_home_score -= 3
+                        field_goal_attempts += 1
                     elif row[PBP.SCORE]:
                         prev_home_score -= 2
+                        field_goal_attempts += 1
                 else:
                     if 'Free Throw' in description:
                         prev_away_score -= 1
+                        free_throw_attempts += 1
                     elif '3PT' in description:
                         prev_away_score -= 3
+                        field_goal_attempts += 1
                     elif row[PBP.SCORE]:
                         prev_away_score -= 2
+                        field_goal_attempts += 1
 
                 if row[PBP.HOMEDESCRIPTION]:
                     score_offense = prev_home_score
@@ -450,15 +484,12 @@ def generate_possession_attempts(play_by_plays: pd.DataFrame,
                 or 'Free Throw' not in description and play_type == 'score':
 
             tot_points += points
-            if tot_points != away_score + home_score:
-                i = 2
 
             lineup_possession_attempts[LPBP.POSSESSION_ID].append(possession_id)
             lineup_possession_attempts[LPBP.POSSESSION_ATTEMPT_ID].append(possession_attempt_id)
-            lineup_possession_attempts[LPBP.POSSESSION_SECONDS_PLAYED_START].append(possession_start_seconds_played)
-            lineup_possession_attempts[LPBP.ATTEMPT_SECONDS_PLAYED_START].append(
+            lineup_possession_attempts[LPBP.SECONDS_PLAYED_END].append(seconds_played)
+            lineup_possession_attempts[LPBP.SECONDS_PLAYED_START].append(
                 possession_attempt_start_seconds_played)
-            lineup_possession_attempts[LPBP.ATTEMPT_SECONDS_PLAYED_END].append(seconds_played)
             lineup_possession_attempts[LPBP.PLAY_END_REASON].append(play_type)
             lineup_possession_attempts[LPBP.SCORE_OFFENSE].append(score_offense)
             lineup_possession_attempts[LPBP.SCORE_DEFENSE].append(score_defense)
@@ -467,11 +498,15 @@ def generate_possession_attempts(play_by_plays: pd.DataFrame,
             lineup_possession_attempts[LPBP.TEAM_ID_OFFENSE].append(team_id_offense)
             lineup_possession_attempts[LPBP.TEAM_ID_DEFENSE].append(team_id_defense)
             lineup_possession_attempts[LPBP.POINTS].append(points)
+            lineup_possession_attempts[LPBP.FIELD_GOAL_ATTEMPTS].append(field_goal_attempts)
+            lineup_possession_attempts[LPBP.FREE_THROW_ATTEMPTS].append(free_throw_attempts)
 
             possession_attempt_id += 1
             points = 0
+            field_goal_attempts = 0
+            free_throw_attempts = 0
 
-            if play_type in ('score', 'turnover', 'end', 'offensive foul') or defensive_rebound:
+            if play_type in ('score', 'turnover', 'end', 'offensive foul', 'steal') or defensive_rebound:
                 possession_id += 1
                 possession_start_seconds_played = seconds_played
 
