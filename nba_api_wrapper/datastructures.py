@@ -47,7 +47,7 @@ class PlayByPlay:
     shot_plays: pd.DataFrame
     team_rotations: list[pd.DataFrame]
     inplay_lineups: pd.DataFrame
-    lineup_play_by_plays: pd.DataFrame
+    possession_attempts: pd.DataFrame
     offense_player_play_by_plays: pd.DataFrame
     defense_player_play_by_plays: pd.DataFrame
     possessions: pd.DataFrame

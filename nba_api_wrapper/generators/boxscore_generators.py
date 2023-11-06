@@ -45,6 +45,7 @@ def generate_game(boxscore: pd.DataFrame, league_game_rows: pd.DataFrame) -> pd.
 
 def generate_game_team(league_game_rows: pd.DataFrame) -> pd.DataFrame:
     game_team_dict = {
+        GT.GAME_ID: [],
         GT.TEAM_ID: [],
         GT.SCORE: [],
         GT.SCORE_OPPONENT: [],
@@ -67,6 +68,7 @@ def generate_game_team(league_game_rows: pd.DataFrame) -> pd.DataFrame:
         team_won = _get_team_won(league_game_rows=league_game_rows, team_name=team_name)
         team_id = game_team_row[LGF.TEAM_ID]
 
+        game_team_dict[GT.GAME_ID].append(game_team_row[LGF.GAME_ID])
         game_team_dict[GT.LOCATION].append(location)
         game_team_dict[GT.TEAM_ID].append(team_id)
         game_team_dict[GT.TEAM_NAME].append(team_name)
@@ -81,6 +83,7 @@ def generate_game_team(league_game_rows: pd.DataFrame) -> pd.DataFrame:
 
 def generate_game_players(boxscore: pd.DataFrame) -> pd.DataFrame:
     game_player_dict = {
+        GT.GAME_ID: [],
         GP.TEAM_ID: [],
         GP.PLAYER_ID: [],
         GP.PLAYER_NAME: [],
@@ -101,6 +104,7 @@ def generate_game_players(boxscore: pd.DataFrame) -> pd.DataFrame:
         GP.OFFENSIVE_REBOUNDS: [],
     }
     for _, row in boxscore.iterrows():
+        game_player_dict[GT.GAME_ID].append(row[BOX.GAME_ID])
         game_player_dict[GP.TEAM_ID].append(row[BOX.TEAM_ID])
         game_player_dict[GP.PLAYER_ID].append(row[BOX.PLAYER_ID])
         game_player_dict[GP.PLAYER_NAME].append(row[BOX.PLAYER_NAME])

@@ -24,6 +24,8 @@ def _get_play_type_by_row(text_description: str, row: pd.Series) -> Optional[str
         return None
     if 'MISS' in text_description:
         play_type = 'miss'
+    elif 'Instant Replay' in text_description:
+        return 'instant replay'
     elif 'REBOUND' in text_description or 'Rebound' in text_description:
         play_type = 'rebound'
 
@@ -104,6 +106,7 @@ def _get_offense_team_id(play_type: str, row: pd.Series, home_team_id, away_team
 def generate_offense_player_play_by_plays(play_by_plays: pd.DataFrame,
                                           possessions: pd.DataFrame) -> pd.DataFrame:
     offense_player_play_by_plays = {
+        POPBP.GAME_ID: [],
         POPBP.POINTS: [],
         POPBP.POSSESSION_ID: [],
         #  POPBP.ASSISTS: [],
@@ -169,6 +172,7 @@ def generate_offense_player_play_by_plays(play_by_plays: pd.DataFrame,
                         points += 2
                         tot_points += 2
 
+            offense_player_play_by_plays[POPBP.GAME_ID].append(row[LPBP.GAME_ID])
             offense_player_play_by_plays[POPBP.POSSESSION_ID].append(row[LPBP.POSSESSION_ID])
             offense_player_play_by_plays[POPBP.FOULS].append(fouls)
             offense_player_play_by_plays[POPBP.POINTS].append(points)
@@ -188,6 +192,7 @@ def generate_defense_player_play_by_plays(play_by_plays: pd.DataFrame,
         PDPBP.REBOUNDS: [],
         PDPBP.PLAYER_ID: [],
         PDPBP.TEAM_ID: [],
+        PDPBP.GAME_ID: [],
     }
 
     player_defensive_rebounds = {p: 0 for p in play_by_plays[PBP.PLAYER1_ID].unique().tolist()}
@@ -255,6 +260,7 @@ def generate_defense_player_play_by_plays(play_by_plays: pd.DataFrame,
                 elif play_type == 'block':
                     blocks += 1
 
+            defense_player_play_by_plays[PDPBP.GAME_ID].append(row[LPBP.GAME_ID])
             defense_player_play_by_plays[PDPBP.POSSESSION_ID].append(row[LPBP.POSSESSION_ID])
             defense_player_play_by_plays[PDPBP.STEALS].append(steals)
             defense_player_play_by_plays[PDPBP.BLOCKS].append(blocks)
@@ -268,7 +274,8 @@ def generate_defense_player_play_by_plays(play_by_plays: pd.DataFrame,
 def generate_possession_from_attempts(possession_attempts: pd.DataFrame) -> pd.DataFrame:
     possessions = (possession_attempts
                    .groupby(
-        [LPBP.POSSESSION_ID, LPBP.TEAM_ID_OFFENSE, LPBP.TEAM_ID_DEFENSE, LPBP.LINEUP_OFFENSE, LPBP.LINEUP_DEFENSE,
+        [LPBP.GAME_ID, LPBP.POSSESSION_ID, LPBP.TEAM_ID_OFFENSE, LPBP.TEAM_ID_DEFENSE, LPBP.LINEUP_OFFENSE,
+         LPBP.LINEUP_DEFENSE,
          LPBP.SECONDS_PLAYED_START]).agg(
         {
             LPBP.POINTS: 'sum',
@@ -289,6 +296,7 @@ def generate_possession_from_attempts(possession_attempts: pd.DataFrame) -> pd.D
 def generate_possession_attempts(play_by_plays: pd.DataFrame,
                                  inplay_lineups: pd.DataFrame) -> Tuple[pd.DataFrame, pd.DataFrame]:
     lineup_possession_attempts = {
+        LPBP.GAME_ID: [],
         LPBP.TEAM_ID_OFFENSE: [],
         LPBP.SCORE_OFFENSE: [],
         LPBP.POSSESSION_ID: [],
@@ -325,8 +333,8 @@ def generate_possession_attempts(play_by_plays: pd.DataFrame,
 
     last_team_id = None
     team_id_offense = None
-    away_score = 0
-    home_score = 0
+    score_offense = 0
+    score_defense = 0
 
     possession_attempt_id = 1
     possession_id = 1
@@ -340,6 +348,7 @@ def generate_possession_attempts(play_by_plays: pd.DataFrame,
         seconds_played = row[PBP.SECONDS_PLAYED]
         description = row[PBP.HOMEDESCRIPTION] if row[PBP.HOMEDESCRIPTION] else row['VISITORDESCRIPTION'] if row[
             'VISITORDESCRIPTION'] else row['NEUTRALDESCRIPTION']
+
         play_type = _get_play_type_by_row(row=row, text_description=description)
 
         if possession_start_seconds_played is None:
@@ -485,6 +494,7 @@ def generate_possession_attempts(play_by_plays: pd.DataFrame,
 
             tot_points += points
 
+            lineup_possession_attempts[LPBP.GAME_ID].append(row[PBP.GAME_ID])
             lineup_possession_attempts[LPBP.POSSESSION_ID].append(possession_id)
             lineup_possession_attempts[LPBP.POSSESSION_ATTEMPT_ID].append(possession_attempt_id)
             lineup_possession_attempts[LPBP.SECONDS_PLAYED_END].append(seconds_played)
@@ -493,8 +503,8 @@ def generate_possession_attempts(play_by_plays: pd.DataFrame,
             lineup_possession_attempts[LPBP.PLAY_END_REASON].append(play_type)
             lineup_possession_attempts[LPBP.SCORE_OFFENSE].append(score_offense)
             lineup_possession_attempts[LPBP.SCORE_DEFENSE].append(score_defense)
-            lineup_possession_attempts[LPBP.LINEUP_OFFENSE].append(lineup)
-            lineup_possession_attempts[LPBP.LINEUP_DEFENSE].append(lineup_defense)
+            lineup_possession_attempts[LPBP.LINEUP_OFFENSE].append(tuple(lineup))
+            lineup_possession_attempts[LPBP.LINEUP_DEFENSE].append(tuple(lineup_defense))
             lineup_possession_attempts[LPBP.TEAM_ID_OFFENSE].append(team_id_offense)
             lineup_possession_attempts[LPBP.TEAM_ID_DEFENSE].append(team_id_defense)
             lineup_possession_attempts[LPBP.POINTS].append(points)
@@ -519,6 +529,7 @@ def generate_possession_attempts(play_by_plays: pd.DataFrame,
 
 def generate_shot_plays(play_by_plays: pd.DataFrame, inplay_lineups: pd.DataFrame) -> pd.DataFrame:
     shot_plays = {
+        SP.GAME_ID: [],
         SP.SECONDS_PLAYED: [],
         SP.SCORE: [],
         SP.SCORE_OPPONENT: [],
@@ -551,9 +562,13 @@ def generate_shot_plays(play_by_plays: pd.DataFrame, inplay_lineups: pd.DataFram
 
         player_id = row[PBP.PLAYER1_ID] if row[PBP.PLAYER1_ID] else row[PBP.PLAYER2_ID] if row[PBP.PLAYER2_ID] else row[
             PBP.PLAYER3_ID]
-        team_id = int(row[PBP.PLAYER1_TEAM_ID]) if row[PBP.PLAYER1_TEAM_ID] else int(row[PBP.PLAYER2_TEAM_ID]) if row[
-            PBP.PLAYER2_TEAM_ID] else int(row[
-                                              PBP.PLAYER3_TEAM_ID])
+        try:
+            team_id = int(row[PBP.PLAYER1_TEAM_ID]) if row[PBP.PLAYER1_TEAM_ID] else int(row[PBP.PLAYER2_TEAM_ID]) if \
+                row[
+                    PBP.PLAYER2_TEAM_ID] else int(row[
+                                                      PBP.PLAYER3_TEAM_ID])
+        except ValueError:
+            continue
 
         if 'miss' in play_type:
             success = False
@@ -583,14 +598,15 @@ def generate_shot_plays(play_by_plays: pd.DataFrame, inplay_lineups: pd.DataFram
             score = away_score
             score_opponent = home_score
 
+        shot_plays[SP.GAME_ID].append(row[PBP.GAME_ID])
         shot_plays[SP.SHOT_TYPE].append(shot_attempt_type)
         shot_plays[SP.SECONDS_PLAYED].append(row[PBP.SECONDS_PLAYED])
         shot_plays[SP.PLAYER_ID].append(player_id)
         shot_plays[SP.TEAM_ID].append(team_id)
         shot_plays[SP.SHOT_DISTANCE].append(shot_distance)
         shot_plays[SP.SUCCESS].append(success)
-        shot_plays[SP.LINEUP].append(lineup)
-        shot_plays[SP.LINEUP_OPPONENT].append(lineup_opponent)
+        shot_plays[SP.LINEUP].append(tuple(lineup))
+        shot_plays[SP.LINEUP_OPPONENT].append(tuple(lineup_opponent))
         shot_plays[SP.SCORE].append(score)
         shot_plays[SP.SCORE_OPPONENT].append(score_opponent)
 
@@ -626,14 +642,21 @@ def generate_inplay_lineups(team_rotations: list[pd.DataFrame]) -> pd.DataFrame:
             out_player_ids = game_team_rotation[game_team_rotation[RN.OUT_TIME_SECONDS_PLAYED] == seconds_played_start][
                 RN.PERSON_ID].unique().tolist()
 
-            for out_player_id in out_player_ids:
-                team_current_lineup[team_id].remove(out_player_id)
-
             for in_player_id in in_player_ids:
+                if in_player_id in out_player_ids:
+                    continue
                 if in_player_id in team_current_lineup[team_id]:
                     logging.warning(f"player {in_player_id} already in lineup")
                     continue
                 team_current_lineup[team_id].append(in_player_id)
+
+            for out_player_id in out_player_ids:
+                if out_player_id in in_player_ids:
+                    continue
+                team_current_lineup[team_id].remove(out_player_id)
+
+            if len(team_current_lineup[team_id]) != 5:
+                h = 2
 
         if idx + 1 == len(switch_times):
             seconds_played_end = game_seconds_duration

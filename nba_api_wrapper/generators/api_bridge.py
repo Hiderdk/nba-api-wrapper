@@ -107,7 +107,7 @@ class ApiBridge():
             play_by_plays=play_by_plays,
             shot_plays=shot_plays,
             possessions=possessions,
-            lineup_play_by_plays=possession_attempts,
+            possession_attempts=possession_attempts,
             offense_player_play_by_plays=offense_player_play_by_plays,
             defense_player_play_by_plays=defense_player_play_by_plays,
         )
