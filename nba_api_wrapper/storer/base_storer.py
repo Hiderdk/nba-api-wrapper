@@ -14,3 +14,7 @@ class Storer(ABC):
     @abstractmethod
     def load_lineups(self) -> pd.DataFrame:
         pass
+
+    @abstractmethod
+    def load_games(self) -> pd.DataFrame:
+        pass

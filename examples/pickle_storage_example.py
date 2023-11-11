@@ -1,6 +1,7 @@
 import pandas as pd
 
 from nba_api_wrapper.game_storer import GameStorer
+from nba_api_wrapper.storer.file_storer import FileStorer
 
 
 def already_stored(collected_data):
@@ -38,6 +39,6 @@ def already_stored(collected_data):
 
 
 if __name__ == '__main__':
-    game_storer = GameStorer()
+    game_storer = GameStorer(storer=FileStorer(base_path="data"), store_frequency=25)
     game_storer.generate(min_date="2022-10-16",
                          max_date='2023-07-17')

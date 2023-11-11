@@ -622,6 +622,7 @@ def generate_inplay_lineups(team_rotations: list[pd.DataFrame], lineups: pd.Data
     team_ids = game_rotations[RN.TEAM_ID].unique().tolist()
 
     game_seconds_duration = game_rotations[RN.OUT_TIME_SECONDS_PLAYED].max()
+    lineup_to_id = {}
 
     team_current_lineup = {t: [] for t in team_ids}
     for idx, seconds_played_start in enumerate(switch_times):
@@ -663,7 +664,10 @@ def generate_inplay_lineups(team_rotations: list[pd.DataFrame], lineups: pd.Data
             lineup.sort()
             lineup_opponent.sort()
 
-            lineup_row = lineups[lineups[LN.LINEUP] == tuple(lineup)]
+            if tuple(lineup) in lineup_to_id:
+                lineup_row = lineup_to_id[tuple(lineup)]
+            else:
+                lineup_row = lineups[lineups[LN.LINEUP] == tuple(lineup)]
             if len(lineup_row) == 0:
                 if len(lineups) == 0:
                     lineup_id = 1
@@ -673,7 +677,11 @@ def generate_inplay_lineups(team_rotations: list[pd.DataFrame], lineups: pd.Data
             else:
                 lineup_id = lineup_row[LN.LINEUP_ID].tolist()[0]
 
-            opponent_lineup_row = lineups[lineups[LN.LINEUP] == tuple(lineup_opponent)]
+            if tuple(lineup_opponent) in lineup_to_id:
+                opponent_lineup_row = lineup_to_id[tuple(lineup_opponent)]
+            else:
+                opponent_lineup_row = lineups[lineups[LN.LINEUP] == tuple(lineup_opponent)]
+
             if len(opponent_lineup_row) == 0:
                 if len(lineups) == 0:
                     lineup_opponent_id = 1

@@ -1,4 +1,5 @@
 import datetime
+import logging
 from dataclasses import dataclass
 from typing import Optional
 
@@ -33,6 +34,7 @@ class GameStorer():
                  store_frequency: int = 20,
                  nba_api: NBAApi = NBAApi(),
                  game_team_player_data: bool = True,
+                 newest_games_only: bool = False,
                  supported_team_names=SUPPORTED_TEAM_NAMES,
                  ):
 
@@ -42,22 +44,40 @@ class GameStorer():
         self.nba_api = nba_api
         self.game_team_player_data = game_team_player_data
         self.supported_team_names = supported_team_names
+        self.newest_games_only = newest_games_only
 
-    def generate(self, min_date: str = "2023-10-22", max_date: Optional[str] = None, ) -> None:
+    def generate(self, min_date: Optional[str] = None, max_date: Optional[str] = None) -> None:
+        if min_date is None:
+            min_date_time = datetime.datetime.now() - datetime.timedelta(days=365)
+            logging.info(f"min_date not provided, using {min_date_time}")
+        else:
 
-        min_date_time = datetime.datetime.strptime(min_date, "%Y-%m-%d")
+            min_date_time = datetime.datetime.strptime(min_date, "%Y-%m-%d")
         if max_date is None:
             max_date_time = datetime.datetime.now()
+            logging.info(f"max_date not provided, using {max_date_time}")
         else:
             max_date_time = datetime.datetime.strptime(max_date, "%Y-%m-%d")
 
         league_games = self.generate_league_games(min_date=min_date_time,
                                                   max_date=max_date_time)
 
-        game_ids = league_games[LFG.GAME_ID].unique().tolist()
-        lineups = self.storer.load_lineups()
-        collected_data = self._generate_collected_data(game_ids=game_ids,lineups=lineups, league_games=league_games)
-        self.storer.store(collected_data=collected_data)
+        remaining_game_ids = league_games[LFG.GAME_ID].unique().tolist()
+        if self.newest_games_only:
+            stored_games = self.storer.load_games()
+            stored_game_ids = stored_games[LFG.GAME_ID].unique().tolist()
+            remaining_game_ids = [game_id for game_id in remaining_game_ids if game_id not in stored_game_ids]
+
+        logging.info(f"Starting to store {len(remaining_game_ids)} games")
+
+        while len(remaining_game_ids) > 0:
+            game_ids = remaining_game_ids[:self.store_frequency]
+            lineups = self.storer.load_lineups()
+            collected_data = self._generate_collected_data(game_ids=game_ids, lineups=lineups,
+                                                           league_games=league_games)
+            self.storer.store(collected_data=collected_data)
+            remaining_game_ids = remaining_game_ids[self.store_frequency:]
+            logging.info(f"Finished storing, {len(remaining_game_ids)} games remaining")
 
     def _generate_collected_data(self, game_ids: list[int], league_games: pd.DataFrame,
                                  lineups: pd.DataFrame) -> CollectedData:
