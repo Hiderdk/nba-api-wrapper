@@ -1,3 +1,5 @@
+import logging
+
 import pandas as pd
 
 from nba_api_wrapper.data_models import GameTeamNames, GameNames, GamePlayerNames, LGFDataNames, BoxscoreV2Names
@@ -65,6 +67,9 @@ def generate_game_team(league_game_rows: pd.DataFrame) -> pd.DataFrame:
 
         team_name = game_team_row[LGF.TEAM_NAME]
         opponent_game_team_row = league_game_rows[league_game_rows[LGF.TEAM_NAME] != team_name]
+        if len(opponent_game_team_row) == 0:
+            logging.warning(f"gameid {game_team_row[LGF.GAME_ID]} team {team_name} has no opponent")
+            raise ValueError
         team_won = _get_team_won(league_game_rows=league_game_rows, team_name=team_name)
         team_id = game_team_row[LGF.TEAM_ID]
 
@@ -114,7 +119,7 @@ def generate_game_players(boxscore: pd.DataFrame) -> pd.DataFrame:
         game_player_dict[GP.THREE_POINTERS_ATTEMPTED].append(row[BOX.FG3A])
         game_player_dict[GP.TWO_POINTERS_MADE].append(row[BOX.FGM] - row[BOX.FG3M])
         game_player_dict[GP.TWO_POINTERS_ATTEMPTED].append(row[BOX.FGA] - row[BOX.FG3A])
-        game_player_dict[GP.PLUS_MINUS].append(row[BOX.PLAYER_NAME])
+        game_player_dict[GP.PLUS_MINUS].append(row[BOX.PLUS_MINUS])
         game_player_dict[GP.MINUTES].append(_get_minutes_played(box_row=row))
         game_player_dict[GP.POINTS].append(row[BOX.PTS])
         game_player_dict[GP.STEALS].append(row[BOX.STL])
