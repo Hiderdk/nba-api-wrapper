@@ -51,6 +51,7 @@ class PlayByPlay:
     offense_player_play_by_plays: pd.DataFrame
     defense_player_play_by_plays: pd.DataFrame
     possessions: pd.DataFrame
+    lineups: pd.DataFrame
 
 @dataclass
 class CollectedData:
@@ -61,4 +62,5 @@ class CollectedData:
     game_teams: pd.DataFrame
     game_players: pd.DataFrame
     game: pd.DataFrame
+    lineups: pd.DataFrame
 

@@ -65,6 +65,7 @@ class FileStorer(Storer):
         else:
             possessions = collected_data.possessions
 
+        collected_data.lineups.to_pickle(os.path.join(self.base_path, "lineups.pickle"))
         possessions.to_pickle(os.path.join(self.base_path, "possessions.pickle"))
         game_players.to_pickle(os.path.join(self.base_path, "game_player.pickle"))
         game_teams.to_pickle(os.path.join(self.base_path, "game_team.pickle"))
@@ -77,7 +78,8 @@ class FileStorer(Storer):
         path = os.path.join(self.base_path, "lineups.pickle")
         if os.path.exists(path):
             lineups =  pd.read_pickle(path)
-            lineups[LineupNames.LINEUP_ID] = lineups[LineupNames.LINEUP_ID].apply(lambda x: tuple(x))
+            lineups[LineupNames.LINEUP] = lineups[LineupNames.LINEUP].apply(lambda x: tuple(x))
+            return lineups
         else:
             return pd.DataFrame(
                 {

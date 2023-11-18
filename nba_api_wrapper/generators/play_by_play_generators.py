@@ -668,6 +668,10 @@ def generate_inplay_lineups(team_rotations: list[pd.DataFrame], lineups: pd.Data
                 lineup_row = lineup_to_id[tuple(lineup)]
             else:
                 lineup_row = lineups[lineups[LN.LINEUP] == tuple(lineup)]
+
+            if len(lineup_row) >1:
+                h = 2
+
             if len(lineup_row) == 0:
                 if len(lineups) == 0:
                     lineup_id = 1
@@ -689,7 +693,7 @@ def generate_inplay_lineups(team_rotations: list[pd.DataFrame], lineups: pd.Data
                     lineup_opponent_id = lineups[LN.LINEUP_ID].max() + 1
 
                 lineups = pd.concat(
-                    [lineups, pd.DataFrame.from_dict({LN.LINEUP_ID: [lineup_opponent_id], LN.LINEUP: [tuple(lineup)]})])
+                    [lineups, pd.DataFrame.from_dict({LN.LINEUP_ID: [lineup_opponent_id], LN.LINEUP: [tuple(lineup_opponent)]})])
             else:
                 lineup_opponent_id = opponent_lineup_row[LN.LINEUP_ID].tolist()[0]
 

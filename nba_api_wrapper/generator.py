@@ -27,6 +27,8 @@ LFG = LGFDataNames
 RN = RotationNames
 PBP = PlayByPlay2Names
 
+logging.basicConfig(level=logging.INFO)
+
 
 class GameStorer():
     def __init__(self,
@@ -88,6 +90,7 @@ class GameStorer():
         defense_player_play_by_plays = []
         possession_attempts = []
         games = []
+        game_ids = [ "0022100003"]
         for game_id in game_ids:
             print(f"processing gameid {game_id}")
 
@@ -113,6 +116,8 @@ class GameStorer():
             game_players.append(boxscore.game_players)
             games.append(boxscore.game)
 
+            lineups = play_by_play.lineups
+
         return CollectedData(
             possessions=pd.concat(possessions),
             game_teams=pd.concat(game_teams),
@@ -120,7 +125,8 @@ class GameStorer():
             offense_player_play_by_plays=pd.concat(offense_player_play_by_plays),
             defense_player_play_by_plays=pd.concat(defense_player_play_by_plays),
             possession_attempts=pd.concat(possession_attempts),
-            game=pd.concat(games)
+            game=pd.concat(games),
+            lineups=lineups
         )
 
     def generate_league_games(self, min_date: datetime.date, max_date: datetime.date) -> pd.DataFrame:
@@ -205,4 +211,5 @@ class GameStorer():
             possession_attempts=possession_attempts,
             offense_player_play_by_plays=offense_player_play_by_plays,
             defense_player_play_by_plays=defense_player_play_by_plays,
+            lineups=lineups
         )
