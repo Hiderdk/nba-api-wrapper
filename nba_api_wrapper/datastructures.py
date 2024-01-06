@@ -34,7 +34,7 @@ class GameTeam:
 
 
 @dataclass
-class Boxscore:
+class TransformedBoxscore:
     id: str
     game_teams: pd.DataFrame
     game_players: pd.DataFrame

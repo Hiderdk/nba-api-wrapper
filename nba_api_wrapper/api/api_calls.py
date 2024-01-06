@@ -1,15 +1,24 @@
-import json
-import logging
 import time
+from dataclasses import dataclass
 
 import pandas as pd
-import requests
-from nba_api.stats.endpoints import LeagueGameFinder, BoxScoreTraditionalV2, PlayByPlayV2, GameRotation
+from nba_api.stats.endpoints import LeagueGameFinder, BoxScoreTraditionalV2, PlayByPlayV2, GameRotation, \
+    BoxScoreAdvancedV2
 
 from nba_api_wrapper.api.api_throttle import APIThrottle
 from nba_api_wrapper.api.decorators import retry_on_error
 
 api_throttle = APIThrottle(interval_seconds=60, max_calls_per_interval=10)
+
+@dataclass
+class BoxscoreData:
+    player_data: pd.DataFrame
+    team_data: pd.DataFrame
+
+@dataclass
+class BoxscoreAdvancedV2Data:
+    player_data: pd.DataFrame
+    team_data: pd.DataFrame
 
 
 class NBAApi:
@@ -49,12 +58,20 @@ class NBAApi:
 
     @retry_on_error
     @api_throttle
-    def get_boxscore_by_game_id(self, game_id: int) -> pd.DataFrame:
+    def get_boxscore_by_game_id(self, game_id: int) -> BoxscoreData:
         boxscore_traditional_v2_data = BoxScoreTraditionalV2(game_id=game_id)
-        box_score_trad_df = boxscore_traditional_v2_data.get_data_frames()[0]
+        box_score_trad_dfs = boxscore_traditional_v2_data.get_data_frames()
+        return BoxscoreData(player_data=box_score_trad_dfs[0].fillna(0), team_data=box_score_trad_dfs[1].fillna(0))
 
-        box_score_trad_df = box_score_trad_df.fillna(0)
-        return box_score_trad_df
+
+    @retry_on_error
+    @api_throttle
+    def boxscore_advanced_v2_by_game_id(self, game_id: int) -> BoxscoreAdvancedV2Data:
+        boxscore_advanced_v2_data = BoxScoreAdvancedV2(game_id=game_id)
+        box_score_adv_dfs = boxscore_advanced_v2_data.get_data_frames()
+
+        return BoxscoreAdvancedV2Data(player_data=box_score_adv_dfs[0].fillna(0), team_data=box_score_adv_dfs[1].fillna(0))
+
 
     @property
     def game_ids(self) -> list[int]:

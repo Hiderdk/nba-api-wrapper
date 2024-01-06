@@ -9,8 +9,8 @@ import pandas as pd
 from nba_api_wrapper.api.api_calls import NBAApi
 from nba_api_wrapper.config import SUPPORTED_TEAM_NAMES
 from nba_api_wrapper.data_models import PosessionNames, LGFDataNames, GameTeamNames, BoxscoreV2Names, RotationNames, \
-    PlayByPlay2Names
-from nba_api_wrapper.datastructures import Boxscore, PlayByPlay, CollectedData
+    PlayByPlay2Names, GameNames
+from nba_api_wrapper.datastructures import TransformedBoxscore, PlayByPlay, CollectedData
 from nba_api_wrapper.generators.boxscore_generators import generate_game_team, generate_game_players, generate_game
 from nba_api_wrapper.generators.play_by_play_generators import generate_defense_player_play_by_plays, \
     generate_offense_player_play_by_plays, generate_possession_from_attempts, generate_possession_attempts, \
@@ -67,7 +67,7 @@ class GameStorer():
         remaining_game_ids = league_games[LFG.GAME_ID].unique().tolist()
         if self.newest_games_only:
             stored_games = self.storer.load_games()
-            stored_game_ids = stored_games[LFG.GAME_ID].unique().tolist()
+            stored_game_ids = stored_games[GameNames.GAME_ID].unique().tolist()
             remaining_game_ids = [game_id for game_id in remaining_game_ids if game_id not in stored_game_ids]
 
         logging.info(f"Starting to store {len(remaining_game_ids)} games")
@@ -90,19 +90,21 @@ class GameStorer():
         defense_player_play_by_plays = []
         possession_attempts = []
         games = []
-        game_ids = [ "0022100003"]
         for game_id in game_ids:
             print(f"processing gameid {game_id}")
 
             try:
-                boxscore = self._generate_boxscore(game_id=game_id, league_games=league_games)
-            except ValueError:
-                continue
+                transformed_boxscore = self._generated_transformed_boxscore(game_id=game_id, league_games=league_games)
+            except ValueError as e:
+                logging.warning(f"gameid {game_id} failed to generate boxscore, error: {e}")
+
             home_team_id = \
-                boxscore.game_teams[boxscore.game_teams[GameTeamNames.LOCATION] == 'home'][GameTeamNames.TEAM_ID].iloc[
+                transformed_boxscore.game_teams[transformed_boxscore.game_teams[GameTeamNames.LOCATION] == 'home'][
+                    GameTeamNames.TEAM_ID].iloc[
                     0]
             away_team_id = \
-                boxscore.game_teams[boxscore.game_teams[GameTeamNames.LOCATION] != 'home'][GameTeamNames.TEAM_ID].iloc[
+                transformed_boxscore.game_teams[transformed_boxscore.game_teams[GameTeamNames.LOCATION] != 'home'][
+                    GameTeamNames.TEAM_ID].iloc[
                     0]
             play_by_play = self._generate_play_by_play(game_id=game_id, home_team_id=home_team_id,
                                                        away_team_id=away_team_id, lineups=lineups)
@@ -112,20 +114,22 @@ class GameStorer():
             defense_player_play_by_plays.append(play_by_play.defense_player_play_by_plays)
 
             possession_attempts.append(play_by_play.possessions)
-            game_teams.append(boxscore.game_teams)
-            game_players.append(boxscore.game_players)
-            games.append(boxscore.game)
+            game_teams.append(transformed_boxscore.game_teams)
+            game_players.append(transformed_boxscore.game_players)
+            games.append(transformed_boxscore.game)
 
             lineups = play_by_play.lineups
 
         return CollectedData(
-            possessions=pd.concat(possessions),
-            game_teams=pd.concat(game_teams),
-            game_players=pd.concat(game_players),
-            offense_player_play_by_plays=pd.concat(offense_player_play_by_plays),
-            defense_player_play_by_plays=pd.concat(defense_player_play_by_plays),
-            possession_attempts=pd.concat(possession_attempts),
-            game=pd.concat(games),
+            possessions=pd.concat(possessions) if possessions else [],
+            game_teams=pd.concat(game_teams) if game_teams else [],
+            game_players=pd.concat(game_players) if game_players else [],
+            offense_player_play_by_plays=pd.concat(
+                offense_player_play_by_plays) if offense_player_play_by_plays else [],
+            defense_player_play_by_plays=pd.concat(
+                defense_player_play_by_plays) if defense_player_play_by_plays else [],
+            possession_attempts=pd.concat(possession_attempts) if possession_attempts else [],
+            game=pd.concat(games) if games else [],
             lineups=lineups
         )
 
@@ -140,17 +144,18 @@ class GameStorer():
                 .sort_values(by=[LGFDataNames.GAME_DATE, LGFDataNames.GAME_ID], ascending=True)
                 )
 
-    def _generate_boxscore(
+    def _generated_transformed_boxscore(
             self,
             league_games: pd.DataFrame,
-            game_id) -> Boxscore:
+            game_id) -> TransformedBoxscore:
         boxscore = self.nba_api.get_boxscore_by_game_id(game_id=game_id)
+        boxscore_adv = self.nba_api.boxscore_advanced_v2_by_game_id(game_id=game_id)
         league_game_rows = league_games[league_games['GAME_ID'] == game_id]
-        game_teams = generate_game_team(league_game_rows=league_game_rows)
-        game_players = generate_game_players(boxscore=boxscore)
-        game = generate_game(league_game_rows=league_game_rows, boxscore=boxscore)
+        game_teams = generate_game_team(game_team_adv_df=boxscore_adv.team_data, league_game_rows=league_game_rows)
+        game_players = generate_game_players(boxscore=boxscore, boxscore_adv=boxscore_adv)
+        game = generate_game(league_game_rows=league_game_rows, boxscore=boxscore.team_data)
 
-        return Boxscore(
+        return TransformedBoxscore(
             id=game_id,
             game_players=game_players,
             game_teams=game_teams,
