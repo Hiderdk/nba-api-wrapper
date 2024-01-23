@@ -38,22 +38,6 @@ class FileStorer(Storer):
         else:
             game_teams = collected_data.game_teams
 
-        if os.path.exists(os.path.join(self.base_path, "offense_player_play_by_plays.pickle")):
-            offense_player_play_by_plays = pd.read_pickle(os.path.join(self.base_path, "offense_player_play_by_plays.pickle"))
-            offense_player_play_by_plays = pd.concat(
-                [offense_player_play_by_plays, collected_data.offense_player_play_by_plays])
-            offense_player_play_by_plays = offense_player_play_by_plays.drop_duplicates(keep='last')
-        else:
-            offense_player_play_by_plays = collected_data.offense_player_play_by_plays
-
-        if os.path.exists(os.path.join(self.base_path, "defense_player_play_by_plays.pickle")):
-
-            defense_player_play_by_plays = pd.read_pickle(os.path.join(self.base_path, "defense_player_play_by_plays.pickle"))
-            defense_player_play_by_plays = pd.concat(
-                [defense_player_play_by_plays, collected_data.defense_player_play_by_plays])
-            defense_player_play_by_plays = defense_player_play_by_plays.drop_duplicates(keep='last')
-        else:
-            defense_player_play_by_plays = collected_data.defense_player_play_by_plays
 
         if os.path.exists(os.path.join(self.base_path, "possessions.pickle")):
 
@@ -63,12 +47,9 @@ class FileStorer(Storer):
         else:
             possessions = collected_data.possessions
 
-        collected_data.lineups.to_pickle(os.path.join(self.base_path, "lineups.pickle"))
         possessions.to_pickle(os.path.join(self.base_path, "possessions.pickle"))
         game_players.to_pickle(os.path.join(self.base_path, "game_player.pickle"))
         game_teams.to_pickle(os.path.join(self.base_path, "game_team.pickle"))
-        offense_player_play_by_plays.to_pickle(os.path.join(self.base_path, "offense_player_play_by_plays.pickle"))
-        defense_player_play_by_plays.to_pickle(os.path.join(self.base_path, "defense_player_play_by_plays.pickle"))
         games.to_pickle(os.path.join(self.base_path, "game.pickle"))
 
 

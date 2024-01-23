@@ -81,26 +81,26 @@ class GameStorer():
                 game_team = self.nba_api.get_game_team_by_game_id(game_id)
                 game_teams.append(game_team)
             except Exception as e:
-                logging.warning(f"gameid {game_id} failed to get boxscore by gameid")
+                logging.warning(f"gameid {game_id} failed to get boxscore by gameid, error: {e}")
                 raise ValueError
 
             try:
                 game_player = self.nba_api.get_game_player_by_game_id(game_id)
                 game_players.append(game_player)
             except Exception as e:
-                logging.warning(f"gameid {game_id} failed to get boxscore by gameid")
+                logging.warning(f"gameid {game_id} failed to get boxscore by gameid, error: {e})")
                 raise ValueError
             try:
                 possession = self.nba_api.get_possessions_by_game_id(game_id=game_id)
                 possessions.append(possession)
             except Exception as e:
-                logging.warning(f"gameid {game_id} failed to get possessions by gameid")
+                logging.warning(f"gameid {game_id} failed to get possessions by gameid, error: {e}")
 
             try:
                 game = self.nba_api.get_game_by_game_id(game_id)
                 games.append(game)
             except Exception as e:
-                logging.warning(f"gameid {game_id} failed to get boxscore by gameid")
+                logging.warning(f"gameid {game_id} failed to get boxscore by gameid, error: {e})")
                 raise ValueError
 
         return CollectedData(

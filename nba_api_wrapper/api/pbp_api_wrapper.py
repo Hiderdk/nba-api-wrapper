@@ -245,6 +245,8 @@ class PlayByPlayNbaApi(BaseApi):
             PosessionModel.POINTS_OFFENSE: [],
             PosessionModel.LINEUP_OFFENSE: [],
             PosessionModel.LINEUP_DEFENSE: [],
+            PosessionModel.LINEUP_ID_OFFENSE: [],
+            PosessionModel.LINEUP_ID_DEFENSE: [],
         }
 
         for possession in game.possessions.items:
@@ -257,6 +259,8 @@ class PlayByPlayNbaApi(BaseApi):
             points_offense = 0
             lineup_offense = None
             lineup_defense = None
+            lineup_offense_id = None
+            lineup_defense_id = None
             for posession_stat in possession.possession_stats:
                 if posession_stat['stat_key'] == 'OffPoss':
                     team_id_offense = posession_stat['team_id']
@@ -265,6 +269,11 @@ class PlayByPlayNbaApi(BaseApi):
                     lineup_offense = [int(player_id) for player_id in lineup_offense]
                     lineup_defense = tuple(posession_stat['opponent_lineup_id'].split("-"))
                     lineup_defense = [int(player_id) for player_id in lineup_defense]
+                    lineup_offense.sort()
+                    lineup_defense.sort()
+
+                    lineup_offense_id = '_'.join(map(str, lineup_offense))
+                    lineup_defense_id = '_'.join(map(str, lineup_defense))
 
                 elif posession_stat['stat_key'] == 'PlusMinus':
                     if posession_stat['stat_value'] > 0:
@@ -282,6 +291,8 @@ class PlayByPlayNbaApi(BaseApi):
             possessions_data[PosessionModel.POINTS_OFFENSE].append(points_offense)
             possessions_data[PosessionModel.LINEUP_OFFENSE].append(lineup_offense)
             possessions_data[PosessionModel.LINEUP_DEFENSE].append(lineup_defense)
+            possessions_data[PosessionModel.LINEUP_ID_OFFENSE].append(lineup_offense_id)
+            possessions_data[PosessionModel.LINEUP_ID_DEFENSE].append(lineup_defense_id)
         return pd.DataFrame.from_dict(possessions_data)
 
     def get_game_by_game_id(self, game_id: Union[str, int]) -> pd.DataFrame:
@@ -290,11 +301,10 @@ class PlayByPlayNbaApi(BaseApi):
         minutes = float(game_data.boxscore.team_items[0]['min'].split(":")[0]) + float(
             game_data.boxscore.team_items[0]['min'].split(":")[1]) / 60
 
-
-        game: dict[GameModel, list[Any]]   = {
+        game: dict[GameModel, list[Any]] = {
             GameModel.GAME_ID: [game_id],
             GameModel.START_DATE: [self._game_id_to_date[game_id]],
-            GameModel.MINUTES: [minutes/5],
+            GameModel.MINUTES: [minutes / 5],
         }
 
         return pd.DataFrame.from_dict(game)

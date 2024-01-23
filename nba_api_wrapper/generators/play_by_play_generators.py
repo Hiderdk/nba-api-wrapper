@@ -669,9 +669,6 @@ def generate_inplay_lineups(team_rotations: list[pd.DataFrame], lineups: pd.Data
             else:
                 lineup_row = lineups[lineups[LN.LINEUP] == tuple(lineup)]
 
-            if len(lineup_row) >1:
-                h = 2
-
             if len(lineup_row) == 0:
                 if len(lineups) == 0:
                     lineup_id = 1

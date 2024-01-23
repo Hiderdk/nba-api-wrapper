@@ -170,6 +170,8 @@ class PosessionModel:
     LINEUP_OFFENSE = "lineup_offense"
     LINEUP_DEFENSE = "lineup_defense"
     POINTS_OFFENSE = "points_offense"
+    LINEUP_ID_OFFENSE = "lineup_id_offense"
+    LINEUP_ID_DEFENSE = "lineup_id_defense"
 
 
 @dataclass
