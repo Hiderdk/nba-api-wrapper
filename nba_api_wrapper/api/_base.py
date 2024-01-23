@@ -1,5 +1,5 @@
 from abc import ABC, abstractmethod
-from typing import Union
+from typing import Union, Any
 
 import pandas as pd
 import pendulum
@@ -8,6 +8,10 @@ from nba_api_wrapper.data_models import GamePlayerModel
 
 
 class BaseApi(ABC):
+
+    @abstractmethod
+    def get_game_ids_by_season(self, season_data: dict[str, Any]) -> list[Union[str, int]]:
+        pass
 
     @abstractmethod
     def get_game_ids_by_date_range(self, min_date: pendulum.DateTime, max_date: pendulum.DateTime) -> list[Union[str, int]]:

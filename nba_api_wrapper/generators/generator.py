@@ -1,7 +1,7 @@
 import datetime
 import logging
 
-from typing import Optional
+from typing import Optional, Any
 
 import numpy as np
 import pandas as pd
@@ -40,18 +40,25 @@ class GameStorer():
 
         self.store_frequency = store_frequency
         self.storer = storer
-        self.nba_api = api
+        self.api = api
         self.newest_games_only = newest_games_only
 
-    def generate(self, min_date: Optional[pendulum.Date] = None, max_date: Optional[pendulum.Date] = None) -> None:
-        if min_date is None:
-            min_date = pendulum.now().subtract(days=5)
+    def generate(self, min_date: Optional[pendulum.Date] = None, max_date: Optional[pendulum.Date] = None,
+                 **season_data) -> None:
+
+        if season_data is not None:
+            game_ids = self.api.get_game_ids_by_season(season_data)
+
+
+        else:
+            if min_date is None:
+                min_date = pendulum.now().subtract(days=5)
             logging.info(f"min_date not provided, using {min_date}")
 
-        if max_date is None:
-            max_date = pendulum.now()
+            if max_date is None:
+                max_date = pendulum.now()
 
-        game_ids = self.nba_api.get_game_ids_by_date_range(min_date=min_date, max_date=max_date)
+            game_ids = self.api.get_game_ids_by_date_range(min_date=min_date, max_date=max_date)
 
         if self.newest_games_only:
             stored_games = self.storer.load_games()
@@ -78,26 +85,26 @@ class GameStorer():
             print(f"processing gameid {game_id}")
 
             try:
-                game_team = self.nba_api.get_game_team_by_game_id(game_id)
+                game_team = self.api.get_game_team_by_game_id(game_id)
                 game_teams.append(game_team)
             except Exception as e:
                 logging.warning(f"gameid {game_id} failed to get boxscore by gameid, error: {e}")
                 raise ValueError
 
             try:
-                game_player = self.nba_api.get_game_player_by_game_id(game_id)
+                game_player = self.api.get_game_player_by_game_id(game_id)
                 game_players.append(game_player)
             except Exception as e:
                 logging.warning(f"gameid {game_id} failed to get boxscore by gameid, error: {e})")
                 raise ValueError
             try:
-                possession = self.nba_api.get_possessions_by_game_id(game_id=game_id)
+                possession = self.api.get_possessions_by_game_id(game_id=game_id)
                 possessions.append(possession)
             except Exception as e:
                 logging.warning(f"gameid {game_id} failed to get possessions by gameid, error: {e}")
 
             try:
-                game = self.nba_api.get_game_by_game_id(game_id)
+                game = self.api.get_game_by_game_id(game_id)
                 games.append(game)
             except Exception as e:
                 logging.warning(f"gameid {game_id} failed to get boxscore by gameid, error: {e})")
@@ -114,8 +121,8 @@ class GameStorer():
             self,
             league_games: pd.DataFrame,
             game_id) -> TransformedBoxscore:
-        boxscore = self.nba_api.get_boxscore_by_game_id(game_id=game_id)
-        boxscore_adv = self.nba_api.boxscore_advanced_v2_by_game_id(game_id=game_id)
+        boxscore = self.api.get_boxscore_by_game_id(game_id=game_id)
+        boxscore_adv = self.api.boxscore_advanced_v2_by_game_id(game_id=game_id)
         league_game_rows = league_games[league_games['GAME_ID'] == game_id]
         game_teams = generate_game_team(game_team_adv_df=boxscore_adv.team_data, league_game_rows=league_game_rows)
         game_players = generate_game_players(boxscore=boxscore, boxscore_adv=boxscore_adv)
@@ -131,7 +138,7 @@ class GameStorer():
 
     def _generate_play_by_play(self, game_id: int, home_team_id: int, away_team_id: int,
                                lineups: pd.DataFrame) -> PlayByPlay:
-        play_by_plays = self.nba_api.get_play_by_play_by_game_id(game_id=game_id)
+        play_by_plays = self.api.get_play_by_play_by_game_id(game_id=game_id)
         play_by_plays = (
             play_by_plays.assign(
                 MINUTES=play_by_plays['PCTIMESTRING'].str.split(":").str[0].astype(int),
@@ -154,7 +161,7 @@ class GameStorer():
                    'PCTIMESTRING'], axis=1)
         )
 
-        team_rotations = self.nba_api.get_rotations_by_game_id(game_id=game_id)
+        team_rotations = self.api.get_rotations_by_game_id(game_id=game_id)
         for idx, rotation in enumerate(team_rotations):
             team_rotations[idx][RN.IN_TIME_SECONDS_PLAYED] = team_rotations[idx][RN.IN_TIME_REAL] / 10
             team_rotations[idx][RN.OUT_TIME_SECONDS_PLAYED] = team_rotations[idx][RN.OUT_TIME_REAL] / 10
