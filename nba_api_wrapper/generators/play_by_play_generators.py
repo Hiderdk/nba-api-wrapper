@@ -3,15 +3,15 @@ from typing import Optional, Tuple
 
 import pandas as pd
 
-from nba_api_wrapper.data_models import RotationNames, TeamPossessionNames, TeamInPlayLineupNames, \
-    ShotPlaysNames, PlayByPlay2Names, LineupPlayByPlaysNames, PlayerOffensePlayByPlaysNames, \
+from nba_api_wrapper.data_models import RotationNames, PosessionModel, TeamInPlayLineupNames, \
+    ShotPlaysModel, PlayByPlay2Model, LineupPlayByPlaysNames, PlayerOffensePlayByPlaysNames, \
     PlayerDefensePlayByPlaysNames, PosessionNames, LineupNames
 
 RN = RotationNames
-TP = TeamPossessionNames
+TP = PosessionModel
 TIPL = TeamInPlayLineupNames
-SP = ShotPlaysNames
-PBP = PlayByPlay2Names
+SP = ShotPlaysModel
+PBP = PlayByPlay2Model
 LPBP = LineupPlayByPlaysNames
 POPBP = PlayerOffensePlayByPlaysNames
 PDPBP = PlayerDefensePlayByPlaysNames
@@ -410,7 +410,7 @@ def generate_possession_attempts(play_by_plays: pd.DataFrame,
                 (inplay_lineups[TIPL.TEAM_ID] == team_id_offense)
                 ]
             if len(lineup_row) == 0:
-                logging.warning("could not find any lineups")
+                logging.warning(f"could not find any lineups, game_id: {row[PBP.GAME_ID]}, team_id: {team_id_offense}, seconds_played: {seconds_played}")
                 continue
             else:
                 lineup_id = lineup_row[TIPL.LINEUP_ID].tolist()[0]
@@ -571,7 +571,7 @@ def generate_shot_plays(play_by_plays: pd.DataFrame, inplay_lineups: pd.DataFram
             (inplay_lineups[TIPL.TEAM_ID] == team_id)
             ]
         if len(lineup_row) == 0:
-            logging.warning("could not find any lineups")
+            logging.warning(f"could not find any lineups, game_id: {row[PBP.GAME_ID]}, team_id: {team_id}, seconds_played: {seconds_played}")
             continue
         else:
             lineup = lineup_row[TIPL.LINEUP].tolist()[0]

@@ -24,7 +24,7 @@ class APIThrottle:
 
         if current_time - self._interval_begin_time < self.interval_seconds:
             self._interval_counts += 1
-            if self._interval_counts > self.max_calls_per_interval:
+            if self._interval_counts >= self.max_calls_per_interval:
                 sleep_seconds = 60 - (current_time - self._interval_begin_time)
                 time.sleep(sleep_seconds)
                 self._interval_counts = 0

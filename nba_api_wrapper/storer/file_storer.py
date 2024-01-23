@@ -1,5 +1,4 @@
 import os
-from typing import Optional
 
 import pandas as pd
 
@@ -11,10 +10,9 @@ from nba_api_wrapper.storer.base_storer import Storer
 
 class FileStorer(Storer):
 
-    def __init__(self, base_path: str = "", pickle: bool = True, overwrite: bool = False):
+    def __init__(self, base_path: str = "", pickle: bool = True):
         self.base_path = base_path
         self.pickle = pickle
-        self.overwrite = overwrite
 
 
     def store(self, collected_data: CollectedData):
@@ -29,14 +27,14 @@ class FileStorer(Storer):
         if os.path.exists(os.path.join(self.base_path, "game_player.pickle")):
             game_players = pd.read_pickle(os.path.join(self.base_path, "game_player.pickle"))
             game_players = pd.concat([game_players, collected_data.game_players])
-            game_players = game_players.drop_duplicates()
+            game_players = game_players.drop_duplicates(keep='last')
         else:
             game_players = collected_data.game_players
 
         if os.path.exists(os.path.join(self.base_path, "game_team.pickle")):
             game_teams = pd.read_pickle(os.path.join(self.base_path, "game_team.pickle"))
             game_teams = pd.concat([game_teams, collected_data.game_teams])
-            game_teams = game_teams.drop_duplicates()
+            game_teams = game_teams.drop_duplicates(keep='last')
         else:
             game_teams = collected_data.game_teams
 
@@ -44,7 +42,7 @@ class FileStorer(Storer):
             offense_player_play_by_plays = pd.read_pickle(os.path.join(self.base_path, "offense_player_play_by_plays.pickle"))
             offense_player_play_by_plays = pd.concat(
                 [offense_player_play_by_plays, collected_data.offense_player_play_by_plays])
-            offense_player_play_by_plays = offense_player_play_by_plays.drop_duplicates()
+            offense_player_play_by_plays = offense_player_play_by_plays.drop_duplicates(keep='last')
         else:
             offense_player_play_by_plays = collected_data.offense_player_play_by_plays
 
@@ -53,7 +51,7 @@ class FileStorer(Storer):
             defense_player_play_by_plays = pd.read_pickle(os.path.join(self.base_path, "defense_player_play_by_plays.pickle"))
             defense_player_play_by_plays = pd.concat(
                 [defense_player_play_by_plays, collected_data.defense_player_play_by_plays])
-            defense_player_play_by_plays = defense_player_play_by_plays.drop_duplicates()
+            defense_player_play_by_plays = defense_player_play_by_plays.drop_duplicates(keep='last')
         else:
             defense_player_play_by_plays = collected_data.defense_player_play_by_plays
 
@@ -61,7 +59,7 @@ class FileStorer(Storer):
 
             possessions = pd.read_pickle(os.path.join(self.base_path, "possessions.pickle"))
             possessions = pd.concat([possessions, collected_data.possessions])
-            possessions = possessions.drop_duplicates()
+            possessions = possessions.drop_duplicates(keep='last')
         else:
             possessions = collected_data.possessions
 

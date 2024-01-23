@@ -55,12 +55,8 @@ class PlayByPlay:
 
 @dataclass
 class CollectedData:
-    possession_attempts: pd.DataFrame
-    offense_player_play_by_plays: pd.DataFrame
-    defense_player_play_by_plays: pd.DataFrame
-    possessions: pd.DataFrame
-    game_teams: pd.DataFrame
-    game_players: pd.DataFrame
-    game: pd.DataFrame
-    lineups: pd.DataFrame
+    possessions: [pd.DataFrame]  = None
+    game_teams: [pd.DataFrame] = None
+    game_players: [pd.DataFrame] = None
+    game: [pd.DataFrame]  = None
 

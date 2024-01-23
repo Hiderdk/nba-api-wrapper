@@ -2,13 +2,12 @@ import logging
 
 import pandas as pd
 
-from nba_api_wrapper.api.api_calls import BoxscoreData, BoxscoreAdvancedV2Data
-from nba_api_wrapper.data_models import GameTeamNames, GameNames, GamePlayerNames, LGFDataNames, BoxscoreV2Names, \
+from nba_api_wrapper.data_models import GameTeamModel, GameModel, GamePlayerModel, LGFDataNames, BoxscoreV2Names, \
     BoxscoreAdvV2Names, BoxscoreAdvV2TeamNames
 
-GT = GameTeamNames
-G = GameNames
-GP = GamePlayerNames
+GT = GameTeamModel
+G = GameModel
+GP = GamePlayerModel
 LGF = LGFDataNames
 BOX = BoxscoreV2Names
 BOX_ADV = BoxscoreAdvV2Names
@@ -115,7 +114,7 @@ def generate_game_team(game_team_adv_df: pd.DataFrame,
     return pd.DataFrame.from_dict(game_team_dict)
 
 
-def generate_game_players(boxscore: BoxscoreData, boxscore_adv: BoxscoreAdvancedV2Data) -> pd.DataFrame:
+def generate_game_players(data) -> pd.DataFrame:
     game_player_dict = {
         GT.GAME_ID: [],
         GP.TEAM_ID: [],
@@ -177,7 +176,7 @@ def generate_game_players(boxscore: BoxscoreData, boxscore_adv: BoxscoreAdvanced
         if len(adv_row) > 0:
             game_player_dict[GP.E_PACE].append(adv_row[BOX_ADV.E_PACE].iloc[0])
             game_player_dict[GP.PACE].append(adv_row[BOX_ADV.PACE].iloc[0])
-            game_player_dict[GP.POSS].append(adv_row[BOX_ADV.POSS])
+            game_player_dict[GP.POSS].append(adv_row[BOX_ADV.POSS].iloc[0])
             game_player_dict[GP.AST_RATIO].append(adv_row[BOX_ADV.AST_RATIO].iloc[0])
             game_player_dict[GP.AST_TOV].append(adv_row[BOX_ADV.AST_TOV].iloc[0])
             game_player_dict[GP.NET_RATING].append(adv_row[BOX_ADV.NET_RATING].iloc[0])

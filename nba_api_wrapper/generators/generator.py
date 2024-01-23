@@ -1,15 +1,15 @@
 import datetime
 import logging
-from dataclasses import dataclass
+
 from typing import Optional
 
 import numpy as np
 import pandas as pd
+import pendulum
 
-from nba_api_wrapper.api.api_calls import NBAApi
-from nba_api_wrapper.config import SUPPORTED_TEAM_NAMES
-from nba_api_wrapper.data_models import PosessionNames, LGFDataNames, GameTeamNames, BoxscoreV2Names, RotationNames, \
-    PlayByPlay2Names, GameNames
+from nba_api_wrapper.api._base import BaseApi
+from nba_api_wrapper.data_models import PosessionNames, LGFDataNames, GameTeamModel, BoxscoreV2Names, RotationNames, \
+    PlayByPlay2Model, GameModel
 from nba_api_wrapper.datastructures import TransformedBoxscore, PlayByPlay, CollectedData
 from nba_api_wrapper.generators.boxscore_generators import generate_game_team, generate_game_players, generate_game
 from nba_api_wrapper.generators.play_by_play_generators import generate_defense_player_play_by_plays, \
@@ -25,124 +25,90 @@ LFG = LGFDataNames
 BOX = BoxscoreV2Names
 LFG = LGFDataNames
 RN = RotationNames
-PBP = PlayByPlay2Names
+PBP = PlayByPlay2Model
 
 logging.basicConfig(level=logging.INFO)
 
 
 class GameStorer():
     def __init__(self,
+                 api: BaseApi,
                  storer: Storer = FileStorer(),
                  store_frequency: int = 20,
-                 nba_api: NBAApi = NBAApi(),
-                 game_team_player_data: bool = True,
                  newest_games_only: bool = False,
-                 supported_team_names=SUPPORTED_TEAM_NAMES,
                  ):
 
         self.store_frequency = store_frequency
-
         self.storer = storer
-        self.nba_api = nba_api
-        self.game_team_player_data = game_team_player_data
-        self.supported_team_names = supported_team_names
+        self.nba_api = api
         self.newest_games_only = newest_games_only
 
-    def generate(self, min_date: Optional[str] = None, max_date: Optional[str] = None) -> None:
+    def generate(self, min_date: Optional[pendulum.Date] = None, max_date: Optional[pendulum.Date] = None) -> None:
         if min_date is None:
-            min_date_time = datetime.datetime.now() - datetime.timedelta(days=365)
-            logging.info(f"min_date not provided, using {min_date_time}")
-        else:
+            min_date = pendulum.now().subtract(days=5)
+            logging.info(f"min_date not provided, using {min_date}")
 
-            min_date_time = datetime.datetime.strptime(min_date, "%Y-%m-%d")
         if max_date is None:
-            max_date_time = datetime.datetime.now()
-            logging.info(f"max_date not provided, using {max_date_time}")
-        else:
-            max_date_time = datetime.datetime.strptime(max_date, "%Y-%m-%d")
+            max_date = pendulum.now()
 
-        league_games = self.generate_league_games(min_date=min_date_time,
-                                                  max_date=max_date_time)
+        game_ids = self.nba_api.get_game_ids_by_date_range(min_date=min_date, max_date=max_date)
 
-        remaining_game_ids = league_games[LFG.GAME_ID].unique().tolist()
         if self.newest_games_only:
             stored_games = self.storer.load_games()
-            stored_game_ids = stored_games[GameNames.GAME_ID].unique().tolist()
-            remaining_game_ids = [game_id for game_id in remaining_game_ids if game_id not in stored_game_ids]
+            stored_game_ids = stored_games[GameModel.GAME_ID].unique().tolist()
+            to_process_game_ids = [game_id for game_id in game_ids if game_id not in stored_game_ids]
+        else:
+            to_process_game_ids = game_ids
 
-        logging.info(f"Starting to store {len(remaining_game_ids)} games")
+        logging.info(f"Starting to store {len(to_process_game_ids)} games")
 
-        while len(remaining_game_ids) > 0:
-            game_ids = remaining_game_ids[:self.store_frequency]
-            lineups = self.storer.load_lineups()
-            collected_data = self._generate_collected_data(game_ids=game_ids, lineups=lineups,
-                                                           league_games=league_games)
+        while len(to_process_game_ids) > 0:
+            to_store_game_ids = to_process_game_ids[:self.store_frequency]
+            collected_data = self._generate_collected_data(game_ids=to_store_game_ids)
             self.storer.store(collected_data=collected_data)
-            remaining_game_ids = remaining_game_ids[self.store_frequency:]
-            logging.info(f"Finished storing, {len(remaining_game_ids)} games remaining")
+            to_process_game_Ids = to_process_game_ids[self.store_frequency:]
+            logging.info(f"Finished storing, {len(to_process_game_Ids)} games remaining")
 
-    def _generate_collected_data(self, game_ids: list[int], league_games: pd.DataFrame,
-                                 lineups: pd.DataFrame) -> CollectedData:
+    def _generate_collected_data(self, game_ids: list[int]) -> CollectedData:
         possessions = []
         game_players = []
         game_teams = []
-        offense_player_play_by_plays = []
-        defense_player_play_by_plays = []
-        possession_attempts = []
         games = []
         for game_id in game_ids:
             print(f"processing gameid {game_id}")
 
             try:
-                transformed_boxscore = self._generated_transformed_boxscore(game_id=game_id, league_games=league_games)
-            except ValueError as e:
-                logging.warning(f"gameid {game_id} failed to generate boxscore, error: {e}")
+                game_team = self.nba_api.get_game_team_by_game_id(game_id)
+                game_teams.append(game_team)
+            except Exception as e:
+                logging.warning(f"gameid {game_id} failed to get boxscore by gameid")
+                raise ValueError
 
-            home_team_id = \
-                transformed_boxscore.game_teams[transformed_boxscore.game_teams[GameTeamNames.LOCATION] == 'home'][
-                    GameTeamNames.TEAM_ID].iloc[
-                    0]
-            away_team_id = \
-                transformed_boxscore.game_teams[transformed_boxscore.game_teams[GameTeamNames.LOCATION] != 'home'][
-                    GameTeamNames.TEAM_ID].iloc[
-                    0]
-            play_by_play = self._generate_play_by_play(game_id=game_id, home_team_id=home_team_id,
-                                                       away_team_id=away_team_id, lineups=lineups)
+            try:
+                game_player = self.nba_api.get_game_player_by_game_id(game_id)
+                game_players.append(game_player)
+            except Exception as e:
+                logging.warning(f"gameid {game_id} failed to get boxscore by gameid")
+                raise ValueError
+            try:
+                possession = self.nba_api.get_possessions_by_game_id(game_id=game_id)
+                possessions.append(possession)
+            except Exception as e:
+                logging.warning(f"gameid {game_id} failed to get possessions by gameid")
 
-            possessions.append(play_by_play.possessions)
-            offense_player_play_by_plays.append(play_by_play.offense_player_play_by_plays)
-            defense_player_play_by_plays.append(play_by_play.defense_player_play_by_plays)
-
-            possession_attempts.append(play_by_play.possessions)
-            game_teams.append(transformed_boxscore.game_teams)
-            game_players.append(transformed_boxscore.game_players)
-            games.append(transformed_boxscore.game)
-
-            lineups = play_by_play.lineups
+            try:
+                game = self.nba_api.get_game_by_game_id(game_id)
+                games.append(game)
+            except Exception as e:
+                logging.warning(f"gameid {game_id} failed to get boxscore by gameid")
+                raise ValueError
 
         return CollectedData(
             possessions=pd.concat(possessions) if possessions else [],
             game_teams=pd.concat(game_teams) if game_teams else [],
             game_players=pd.concat(game_players) if game_players else [],
-            offense_player_play_by_plays=pd.concat(
-                offense_player_play_by_plays) if offense_player_play_by_plays else [],
-            defense_player_play_by_plays=pd.concat(
-                defense_player_play_by_plays) if defense_player_play_by_plays else [],
-            possession_attempts=pd.concat(possession_attempts) if possession_attempts else [],
             game=pd.concat(games) if games else [],
-            lineups=lineups
         )
-
-    def generate_league_games(self, min_date: datetime.date, max_date: datetime.date) -> pd.DataFrame:
-        date_from_nullable = min_date.strftime('%m/%d/%Y')
-        date_to_nullable = max_date.strftime('%m/%d/%Y')
-
-        data = self.nba_api.get_league_game_finder_data(min_date=date_from_nullable,
-                                                        max_date=date_to_nullable)
-
-        return (data[data[LGFDataNames.TEAM_NAME].isin(self.supported_team_names)]
-                .sort_values(by=[LGFDataNames.GAME_DATE, LGFDataNames.GAME_ID], ascending=True)
-                )
 
     def _generated_transformed_boxscore(
             self,

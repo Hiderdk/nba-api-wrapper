@@ -1,7 +1,7 @@
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from datetime import datetime
 from enum import Enum
-from typing import Optional
+from typing import Optional, Union
 
 
 @dataclass
@@ -76,6 +76,7 @@ class BoxscoreAdvV2Names:
     PACE_PER40 = "PACE_PER40"
     PIE = "PIE"
 
+
 @dataclass
 class BoxscoreAdvV2TeamNames:
     GAME_ID = "GAME_ID"
@@ -107,8 +108,9 @@ class BoxscoreAdvV2TeamNames:
     POSS = "POSS"
     PIE = "PIE"
 
+
 @dataclass
-class PlayByPlay2Names:
+class PlayByPlay2Model:
     GAME_ID = "GAME_ID"
     HOMEDESCRIPTION = "HOMEDESCRIPTION"
     VISITORDESCRIPTION = "VISITORDESCRIPTION"
@@ -130,7 +132,7 @@ class PlayByPlay2Names:
 
 
 @dataclass
-class ShotPlaysNames:
+class ShotPlaysModel:
     GAME_ID = "GAME_ID"
     SECONDS_PLAYED = "SECONDS_PLAYED"
     SCORE = "SCORE"
@@ -159,25 +161,15 @@ class RotationNames:
 
 
 @dataclass
-class TeamPossessionNames:
+class PosessionModel:
     GAME_ID = "game_id"
-    SECONDS_PLAYED = "seconds_played"
-    DURATION = "duration"
-    TEAM_ID = "team_id"
-    IN_POSSESSION = "in_possession"
-    PRIOR_PLAY_ENDING = "prior_play_ending"
-    LINEUP_ID = "lineup_id"
-    LINEUP_ID_OPPONENT = "lineup_id_opponent"
-    POINTS = "points"
-    POINTS_OPPONENT = "points_opponent"
-    THREE_POINTERS_SHOT = "three_pointers_shot"
-    TWO_POINTERS_SHOT = "two_pointers_shot"
-    THREE_POINTERS_SHOT_OPPONENT = "three_pointers_shot_opponent"
-    TWO_POINTERS_SHOT_OPPONENT = "two_pointers_shot_opponent"
-    FOULS = "fouls"
-    FOULS_OPPONENT = "fouls_opponent"
-    REBOUNDS = "rebounds"
-    REBOUNDS_OPPONENT = "rebounds_opponent"
+    START_TIME_SECONDS = "start_time_seconds"
+    END_TIME_SECONDS = "end_time_seconds"
+    TEAM_ID_OFFENSE = "team_id_offense"
+    TEAM_ID_DEFENSE = "team_id_defense"
+    LINEUP_OFFENSE = "lineup_offense"
+    LINEUP_DEFENSE = "lineup_defense"
+    POINTS_OFFENSE = "points_offense"
 
 
 @dataclass
@@ -212,7 +204,6 @@ class LineupPlayByPlaysNames:
     LINEUP_ID_DEFENSE = "lineup_id_defense"
     INPLAY_ID = "inplay_id"
     PLAY_END_REASON = "play_end_reason"
-
 
 
 @dataclass
@@ -264,11 +255,16 @@ class PlayerDefensePlayByPlaysNames:
 
 
 @dataclass
-class GamePlayerNames:
+class GamePlayerModel():
     PLAYER_ID = "player_id"
     GAME_ID = "game_id"
     TEAM_ID = "team_id"
+    TEAM_NAME = "team_name"
     PLAYER_NAME = "player_name"
+
+
+@dataclass
+class NBAPBPGamePlayerModel(GamePlayerModel):
     START_POSITION = "start_position"
     MINUTES = "minutes"
     POINTS = "points"
@@ -289,46 +285,33 @@ class GamePlayerNames:
     PACE = "pace"
     POSS = "possessions"
     E_PACE = "e_pace"
-    E_OFF_RATING = "e_off_rating"
-    OFF_RATING = "off_rating"
-    E_DEF_RATING = "e_def_rating"
-    DEF_RATING = "def_rating"
-    E_NET_RATING = "e_net_rating"
-    NET_RATING = "net_rating"
-    AST_TOV = "ast_tov"
-    AST_RATIO = "ast_ratio"
 
 
 @dataclass
-class GameTeamNames:
+class GameTeamModel():
     GAME_ID = "game_id"
     TEAM_ID = "team_id"
     TEAM_NAME = "team_name"
-    TEAM_NAME_ABBR = "team_name_abbr"
     TEAM_ID_OPPONENT = "team_id_opponent"
+    WON = "won"
+
+
+@dataclass
+class NbaPbPGameTeamModel(GameTeamModel):
     LOCATION = "location"
     SCORE = "score"
     SCORE_OPPONENT = "score_opponent"
-    WON = "won"
-    E_OFF_RATING = "e_off_rating"
-    OFF_RATING = "off_rating"
-    E_DEF_RATING = "e_def_rating"
-    DEF_RATING = "def_rating"
-    E_NET_RATING = "e_net_rating"
-    NET_RATING = "net_rating"
     PACE = "pace"
     E_PACE = "e_pace"
     POSS = "possessions"
     PIE = "pie"
 
 
-
 @dataclass
-class GameNames:
+class GameModel:
     GAME_ID = "game_id"
     START_DATE = "start_date"
     MINUTES = "minutes"
-    SEASON_ID = "season_id"
 
 
 @dataclass
