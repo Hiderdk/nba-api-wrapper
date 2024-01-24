@@ -3,17 +3,19 @@ from typing import Any, Union
 
 import pandas as pd
 import pendulum
+from pbpstats.data_loader.stats_nba.possessions.loader import TeamHasBackToBackPossessionsException
 
 from enums import Location
 from nba_api_wrapper.api._base import BaseApi
 from nba_api_wrapper.api.api_throttle import APIThrottle
 from nba_api_wrapper.api.decorators import retry_on_error
+from nba_api_wrapper.api.nba_api import NBAApi
 from nba_api_wrapper.data_models import PosessionModel, NBAPBPGamePlayerModel, NbaPbPGameTeamModel, GamePlayerModel, \
     GameModel
 from pbpstats.client import Client
-from nba_api.stats.endpoints import BoxScoreAdvancedV2
+from nba_api.stats.endpoints import BoxScoreTraditionalV3, BoxScoreAdvancedV3, BoxScoreTraditionalV2, BoxScoreAdvancedV2
 
-api_throttle = APIThrottle(interval_seconds=60, max_calls_per_interval=6)
+api_throttle = APIThrottle(interval_seconds=35, max_calls_per_interval=5)
 
 
 class PlayByPlayNbaApi(BaseApi):
@@ -21,11 +23,11 @@ class PlayByPlayNbaApi(BaseApi):
     def __init__(self):
 
         self._game_id_to_final_games: dict[Union[str, int], object] = {}
+        self._game_id_nba_api_games: dict[Union[str, int], pd.DataFrame] = {}
         self._game_id_to_home_team_id = {}
         self._game_id_to_visitor_team_id = {}
         self._game_id_to_date = {}
         self._adv_game = None
-        self._game_box_score = {}
 
     def get_game_ids_by_date_range(self, min_date: pendulum.DateTime, max_date: pendulum.DateTime) -> list[
         Union[str, int]]:
@@ -34,8 +36,7 @@ class PlayByPlayNbaApi(BaseApi):
             game_ids += self.get_game_ids_by_date(date)
         return game_ids
 
-    @api_throttle
-    def get_game_ids_by_season(self,  season_data: dict[str, Any]) -> list[Union[str, int]]:
+    def get_game_ids_by_season(self, season_data: dict[str, Any]) -> list[Union[str, int]]:
         game_settings = {
             "Games": {"source": "web", "data_provider": "stats_nba"},
         }
@@ -50,8 +51,6 @@ class PlayByPlayNbaApi(BaseApi):
 
         return game_ids
 
-    @api_throttle
-    @retry_on_error
     def get_game_ids_by_date(self, date: pendulum.DateTime) -> list[Union[str, int]]:
         game_settings = {
             "Games": {"source": "web", "data_provider": "stats_nba"},
@@ -69,7 +68,6 @@ class PlayByPlayNbaApi(BaseApi):
         return game_ids
 
     @api_throttle
-    @retry_on_error
     def get_game_team_by_game_id(self, game_id: int) -> pd.DataFrame:
 
         game_team_data = {
@@ -89,47 +87,86 @@ class PlayByPlayNbaApi(BaseApi):
         }
 
         game_settings = {
+            "Games": {"source": "web", "data_provider": "stats_nba"},
             "Boxscore": {"source": "web", "data_provider": "stats_nba"},
+            "Possessions": {"source": "web", "data_provider": "stats_nba"},
         }
-        client = Client(game_settings)
-        game = client.Game(game_id)
-        self._game_box_score[game_id] = game
-        self._adv_game = BoxScoreAdvancedV2(game_id=game_id)
+        try:
+            client = Client(game_settings)
+            game = client.Game(game_id=game_id)
+            self._game_id_to_final_games[game_id] = game
+        except TeamHasBackToBackPossessionsException:
+            logging.warning(f"GameId {game_id} TeamHasBackToBackPossessionsException")
+            nba_api_game = BoxScoreTraditionalV2(game_id=game_id)
+            self._game_id_nba_api_games[game_id] = nba_api_game.get_data_frames()
+        nba_api_game = BoxScoreTraditionalV2(game_id=game_id)
+        self._game_id_nba_api_games[game_id] = nba_api_game.get_data_frames()
+
+        self._adv_game = BoxScoreAdvancedV3(game_id=game_id)
         if self._adv_game is not None:
             adv_game_dfs = self._adv_game.get_data_frames()
         else:
             logging.warning(f"gameid {game_id} failed to get boxscore advanced by gameid")
             adv_game_dfs = None
-        self._game_id_to_final_games[game_id] = game
 
         if game_id not in self._game_id_to_home_team_id:
             raise ValueError(f"Game id {game_id} not found in game id to home team id map")
 
-        for idx, team in enumerate(game.boxscore.data['team']):
+        if game_id in self._game_id_nba_api_games:
 
-            won = 1 if team['pts'] > game.boxscore.data['team'][-idx + 1]['pts'] else 0
+            for idx, row in self._game_id_nba_api_games[game_id][1].iterrows():
 
-            if team['team_id'] == self._game_id_to_home_team_id[game_id]:
-                game_team_data[NbaPbPGameTeamModel.LOCATION].append(Location.HOME.value)
-            elif team['team_id'] == self._game_id_to_visitor_team_id[game_id]:
-                game_team_data[NbaPbPGameTeamModel.LOCATION].append(Location.AWAY.value)
-            else:
-                game_team_data[NbaPbPGameTeamModel.LOCATION].append(Location.NEUTRAL.value)
+                score_opponent = self._game_id_nba_api_games[game_id][1].iloc[-idx + 1]['PTS']
+                won = 1 if row['PTS'] > score_opponent else 0
 
-            game_team_data[NbaPbPGameTeamModel.GAME_ID].append(game_id)
-            game_team_data[NbaPbPGameTeamModel.TEAM_ID].append(team['team_id'])
-            game_team_data[NbaPbPGameTeamModel.TEAM_NAME].append(team['team_name'])
-            game_team_data[NbaPbPGameTeamModel.TEAM_ID_OPPONENT].append(game.boxscore.data['team'][-idx + 1]['team_id'])
-            game_team_data[NbaPbPGameTeamModel.SCORE].append(team['pts'])
-            game_team_data[NbaPbPGameTeamModel.SCORE_OPPONENT].append(game.boxscore.data['team'][-idx + 1]['pts'])
-            game_team_data[NbaPbPGameTeamModel.WON].append(won)
+                if row['TEAM_ID'] == self._game_id_to_home_team_id[game_id]:
+                    game_team_data[NbaPbPGameTeamModel.LOCATION].append(Location.HOME.value)
+                elif row['TEAM_ID'] == self._game_id_to_visitor_team_id[game_id]:
+                    game_team_data[NbaPbPGameTeamModel.LOCATION].append(Location.AWAY.value)
+                else:
+                    game_team_data[NbaPbPGameTeamModel.LOCATION].append(Location.NEUTRAL.value)
+
+                game_team_data[NbaPbPGameTeamModel.GAME_ID].append(game_id)
+                game_team_data[NbaPbPGameTeamModel.TEAM_ID].append(row['TEAM_ID'])
+                game_team_data[NbaPbPGameTeamModel.TEAM_NAME].append(row['TEAM_NAME'])
+                game_team_data[NbaPbPGameTeamModel.TEAM_ID_OPPONENT].append(
+                    self._game_id_nba_api_games[game_id][1].iloc[-idx + 1]['TEAM_ID'])
+                game_team_data[NbaPbPGameTeamModel.SCORE].append(row['PTS'])
+                game_team_data[NbaPbPGameTeamModel.SCORE_OPPONENT].append(score_opponent)
+                game_team_data[NbaPbPGameTeamModel.WON].append(won)
+
+        else:
+
+            for idx, team in enumerate(game.boxscore.data['team']):
+
+                won = 1 if team['pts'] > game.boxscore.data['team'][-idx + 1]['pts'] else 0
+
+                if team['team_id'] == self._game_id_to_home_team_id[game_id]:
+                    game_team_data[NbaPbPGameTeamModel.LOCATION].append(Location.HOME.value)
+                elif team['team_id'] == self._game_id_to_visitor_team_id[game_id]:
+                    game_team_data[NbaPbPGameTeamModel.LOCATION].append(Location.AWAY.value)
+                else:
+                    game_team_data[NbaPbPGameTeamModel.LOCATION].append(Location.NEUTRAL.value)
+
+                game_team_data[NbaPbPGameTeamModel.GAME_ID].append(game_id)
+                game_team_data[NbaPbPGameTeamModel.TEAM_ID].append(team['team_id'])
+                game_team_data[NbaPbPGameTeamModel.TEAM_NAME].append(team['team_name'])
+                game_team_data[NbaPbPGameTeamModel.TEAM_ID_OPPONENT].append(
+                    game.boxscore.data['team'][-idx + 1]['team_id'])
+                game_team_data[NbaPbPGameTeamModel.SCORE].append(team['pts'])
+                game_team_data[NbaPbPGameTeamModel.SCORE_OPPONENT].append(
+                    game.boxscore.data['team'][-idx + 1]['pts'])
+                game_team_data[NbaPbPGameTeamModel.WON].append(won)
+
+        for team_id in game_team_data[NbaPbPGameTeamModel.TEAM_ID]:
+
             if self._adv_game is not None and len(adv_game_dfs) > 1:
-                adv_game_team = adv_game_dfs[0] if adv_game_dfs[0]['TEAM_ID'].iloc[0] == team['team_id'] else \
+                adv_game_team = adv_game_dfs[0] if adv_game_dfs[0]['teamId'].iloc[0] == team_id else \
                     adv_game_dfs[1]
                 game_team_data[NbaPbPGameTeamModel.PIE].append(adv_game_team['PIE'].iloc[0])
-                game_team_data[NbaPbPGameTeamModel.PACE].append(adv_game_team['PACE'].iloc[0])
-                game_team_data[NbaPbPGameTeamModel.E_PACE].append(adv_game_team['E_PACE'].iloc[0])
-                game_team_data[NbaPbPGameTeamModel.POSS].append(adv_game_team['POSS'].iloc[0])
+                game_team_data[NbaPbPGameTeamModel.PACE].append(adv_game_team['pace'].iloc[0])
+                game_team_data[NbaPbPGameTeamModel.E_PACE].append(adv_game_team['estimatedPace'].iloc[0])
+                game_team_data[NbaPbPGameTeamModel.POSS].append(adv_game_team['possessions'].iloc[0])
             else:
                 game_team_data[NbaPbPGameTeamModel.PIE].append(None)
                 game_team_data[NbaPbPGameTeamModel.PACE].append(None)
@@ -166,33 +203,61 @@ class PlayByPlayNbaApi(BaseApi):
             NBAPBPGamePlayerModel.E_PACE: [],
         }
 
-        for idx, player in enumerate(self._game_box_score[game_id].boxscore.data['player']):
-            game_player_data[NBAPBPGamePlayerModel.GAME_ID].append(game_id)
-            game_player_data[NBAPBPGamePlayerModel.TEAM_ID].append(player['team_id'])
-            game_player_data[NBAPBPGamePlayerModel.PLAYER_ID].append(player['player_id'])
-            game_player_data[NBAPBPGamePlayerModel.PLAYER_NAME].append(player['name'])
-            game_player_data[NBAPBPGamePlayerModel.START_POSITION].append(player['start_position'])
-            game_player_data[NBAPBPGamePlayerModel.MINUTES].append(player['min'])
-            game_player_data[NBAPBPGamePlayerModel.POINTS].append(player['pts'])
-            game_player_data[NBAPBPGamePlayerModel.THREE_POINTERS_MADE].append(player['fg3m'])
-            game_player_data[NBAPBPGamePlayerModel.THREE_POINTERS_ATTEMPTED].append(player['fg3a'])
-            game_player_data[NBAPBPGamePlayerModel.TWO_POINTERS_MADE].append(player['fgm'] - player['fg3m'])
-            game_player_data[NBAPBPGamePlayerModel.TWO_POINTERS_ATTEMPTED].append(player['fga'] - player['fg3a'])
-            game_player_data[NBAPBPGamePlayerModel.FREE_THROWS_MADE].append(player['ftm'])
-            game_player_data[NBAPBPGamePlayerModel.FREE_THROWS_ATTEMPTED].append(player['fta'])
-            game_player_data[NBAPBPGamePlayerModel.PLUS_MINUS].append(player['plus_minus'])
-            game_player_data[NBAPBPGamePlayerModel.BLOCKS].append(player['blk'])
-            game_player_data[NBAPBPGamePlayerModel.STEALS].append(player['stl'])
-            game_player_data[NBAPBPGamePlayerModel.ASSISTS].append(player['ast'])
-            game_player_data[NBAPBPGamePlayerModel.OFFENSIVE_REBOUNDS].append(player['oreb'])
-            game_player_data[NBAPBPGamePlayerModel.DEFENSIVE_REBOUNDS].append(player['dreb'])
-            game_player_data[NBAPBPGamePlayerModel.TURNOVERS].append(player['to'])
-            game_player_data[NBAPBPGamePlayerModel.FOULS].append(player['pf'])
+        if game_id in self._game_id_nba_api_games:
+            for _, row in self._game_id_nba_api_games[game_id][0].iterrows():
+                game_player_data[NBAPBPGamePlayerModel.GAME_ID].append(game_id)
+                game_player_data[NBAPBPGamePlayerModel.TEAM_ID].append(row['TEAM_ID'])
+                game_player_data[NBAPBPGamePlayerModel.PLAYER_ID].append(row['PLAYER_ID'])
+                game_player_data[NBAPBPGamePlayerModel.PLAYER_NAME].append(row['PLAYER_NAME'])
+                game_player_data[NBAPBPGamePlayerModel.START_POSITION].append(row['START_POSITION'])
+                game_player_data[NBAPBPGamePlayerModel.MINUTES].append(row['MIN'])
+                game_player_data[NBAPBPGamePlayerModel.POINTS].append(row['PTS'])
+                game_player_data[NBAPBPGamePlayerModel.THREE_POINTERS_MADE].append(row['FG3M'])
+                game_player_data[NBAPBPGamePlayerModel.THREE_POINTERS_ATTEMPTED].append(row['FG3A'])
+                game_player_data[NBAPBPGamePlayerModel.TWO_POINTERS_MADE].append(row['FGM'] - row['FG3M'])
+                game_player_data[NBAPBPGamePlayerModel.TWO_POINTERS_ATTEMPTED].append(row['FGA'] - row['FG3A'])
+                game_player_data[NBAPBPGamePlayerModel.FREE_THROWS_MADE].append(row['FTM'])
+                game_player_data[NBAPBPGamePlayerModel.FREE_THROWS_ATTEMPTED].append(row['FTA'])
+                game_player_data[NBAPBPGamePlayerModel.PLUS_MINUS].append(row['PLUS_MINUS'])
+                game_player_data[NBAPBPGamePlayerModel.BLOCKS].append(row['BLK'])
+                game_player_data[NBAPBPGamePlayerModel.STEALS].append(row['STL'])
+                game_player_data[NBAPBPGamePlayerModel.ASSISTS].append(row['AST'])
+                game_player_data[NBAPBPGamePlayerModel.OFFENSIVE_REBOUNDS].append(row['OREB'])
+                game_player_data[NBAPBPGamePlayerModel.DEFENSIVE_REBOUNDS].append(row['DREB'])
+                game_player_data[NBAPBPGamePlayerModel.TURNOVERS].append(row['TO'])
+                game_player_data[NBAPBPGamePlayerModel.FOULS].append(row['PF'])
 
+        else:
+
+            for idx, player in enumerate(self._game_id_to_final_games[game_id].boxscore.data['player']):
+                game_player_data[NBAPBPGamePlayerModel.GAME_ID].append(game_id)
+                game_player_data[NBAPBPGamePlayerModel.TEAM_ID].append(player['team_id'])
+                game_player_data[NBAPBPGamePlayerModel.PLAYER_ID].append(player['player_id'])
+                game_player_data[NBAPBPGamePlayerModel.PLAYER_NAME].append(player['name'])
+                game_player_data[NBAPBPGamePlayerModel.START_POSITION].append(player['start_position'])
+                game_player_data[NBAPBPGamePlayerModel.MINUTES].append(player['min'])
+                game_player_data[NBAPBPGamePlayerModel.POINTS].append(player['pts'])
+                game_player_data[NBAPBPGamePlayerModel.THREE_POINTERS_MADE].append(player['fg3m'])
+                game_player_data[NBAPBPGamePlayerModel.THREE_POINTERS_ATTEMPTED].append(player['fg3a'])
+                game_player_data[NBAPBPGamePlayerModel.TWO_POINTERS_MADE].append(player['fgm'] - player['fg3m'])
+                game_player_data[NBAPBPGamePlayerModel.TWO_POINTERS_ATTEMPTED].append(player['fga'] - player['fg3a'])
+                game_player_data[NBAPBPGamePlayerModel.FREE_THROWS_MADE].append(player['ftm'])
+                game_player_data[NBAPBPGamePlayerModel.FREE_THROWS_ATTEMPTED].append(player['fta'])
+                game_player_data[NBAPBPGamePlayerModel.PLUS_MINUS].append(player['plus_minus'])
+                game_player_data[NBAPBPGamePlayerModel.BLOCKS].append(player['blk'])
+                game_player_data[NBAPBPGamePlayerModel.STEALS].append(player['stl'])
+                game_player_data[NBAPBPGamePlayerModel.ASSISTS].append(player['ast'])
+                game_player_data[NBAPBPGamePlayerModel.OFFENSIVE_REBOUNDS].append(player['oreb'])
+                game_player_data[NBAPBPGamePlayerModel.DEFENSIVE_REBOUNDS].append(player['dreb'])
+                game_player_data[NBAPBPGamePlayerModel.TURNOVERS].append(player['to'])
+                game_player_data[NBAPBPGamePlayerModel.FOULS].append(player['pf'])
+
+
+        for player_id in game_player_data[NBAPBPGamePlayerModel.PLAYER_ID]:
             if self._adv_game is not None:
                 adv_game_dfs = self._adv_game.get_data_frames()
                 adv_game_players = [adv_game_df for _, adv_game_df in adv_game_dfs[0].iterrows() if
-                                    adv_game_df['PLAYER_ID'] == player['player_id']]
+                                    adv_game_df['personId'] == player_id]
                 if len(adv_game_players) == 0:
                     logging.warning(
                         f"gameid {game_id} failed to get boxscore advanced by gameid for playerid {player['player_id']}")
@@ -201,9 +266,15 @@ class PlayByPlayNbaApi(BaseApi):
                     game_player_data[NBAPBPGamePlayerModel.E_PACE].append(None)
                 else:
 
-                    game_player_data[NBAPBPGamePlayerModel.PACE].append(adv_game_players[0]['PACE'])
-                    game_player_data[NBAPBPGamePlayerModel.POSS].append(adv_game_players[0]['POSS'])
-                    game_player_data[NBAPBPGamePlayerModel.E_PACE].append(adv_game_players[0]['E_PACE'])
+                    game_player_data[NBAPBPGamePlayerModel.PACE].append(adv_game_players[0]['pace'])
+                    game_player_data[NBAPBPGamePlayerModel.POSS].append(adv_game_players[0]['possessions'])
+                    game_player_data[NBAPBPGamePlayerModel.E_PACE].append(adv_game_players[0]['estimatedPace'])
+
+            else:
+
+                game_player_data[NBAPBPGamePlayerModel.PACE].append(None)
+                game_player_data[NBAPBPGamePlayerModel.POSS].append(None)
+                game_player_data[NBAPBPGamePlayerModel.E_PACE].append(None)
 
         return pd.DataFrame(game_player_data)
 
@@ -215,7 +286,7 @@ class PlayByPlayNbaApi(BaseApi):
             "Possessions": {"source": "web", "data_provider": "stats_nba"},
         }
         client = Client(game_settings)
-        game = client.Game(game_id)
+        game = self._game_id_to_final_games[game_id]
 
         possessions_data: dict[PosessionModel, list[Any]] = {
             PosessionModel.TEAM_ID_OFFENSE: [],
@@ -243,7 +314,7 @@ class PlayByPlayNbaApi(BaseApi):
             lineup_offense_id = None
             lineup_defense_id = None
             for posession_stat in possession.possession_stats:
-                if posession_stat['stat_key'] == 'OffPoss':
+                if "Off" in posession_stat['stat_key'] or 'Bad Pass' in posession_stat['stat_key']:
                     team_id_offense = posession_stat['team_id']
                     team_id_defense = posession_stat['opponent_team_id']
                     lineup_offense = tuple(posession_stat['lineup_id'].split("-"))
@@ -264,14 +335,19 @@ class PlayByPlayNbaApi(BaseApi):
             if team_id_offense in team_id_points:
                 points_offense = team_id_points[team_id_offense]
 
+            if lineup_offense is None or lineup_defense is None:
+                if len(possession.possession_stats) > 1:
+                    h = 2
+                continue
+
             possessions_data[PosessionModel.TEAM_ID_OFFENSE].append(team_id_offense)
             possessions_data[PosessionModel.TEAM_ID_DEFENSE].append(team_id_defense)
             possessions_data[PosessionModel.GAME_ID].append(game_id)
             possessions_data[PosessionModel.START_TIME_SECONDS].append(start_time)
             possessions_data[PosessionModel.END_TIME_SECONDS].append(end_time)
             possessions_data[PosessionModel.POINTS_OFFENSE].append(points_offense)
-            possessions_data[PosessionModel.LINEUP_OFFENSE].append(lineup_offense)
-            possessions_data[PosessionModel.LINEUP_DEFENSE].append(lineup_defense)
+            possessions_data[PosessionModel.LINEUP_OFFENSE].append(tuple(lineup_offense))
+            possessions_data[PosessionModel.LINEUP_DEFENSE].append(tuple(lineup_defense))
             possessions_data[PosessionModel.LINEUP_ID_OFFENSE].append(lineup_offense_id)
             possessions_data[PosessionModel.LINEUP_ID_DEFENSE].append(lineup_defense_id)
         return pd.DataFrame.from_dict(possessions_data)

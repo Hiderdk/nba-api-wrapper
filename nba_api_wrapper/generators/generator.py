@@ -73,8 +73,8 @@ class GameStorer():
             to_store_game_ids = to_process_game_ids[:self.store_frequency]
             collected_data = self._generate_collected_data(game_ids=to_store_game_ids)
             self.storer.store(collected_data=collected_data)
-            to_process_game_Ids = to_process_game_ids[self.store_frequency:]
-            logging.info(f"Finished storing, {len(to_process_game_Ids)} games remaining")
+            to_process_game_ids = to_process_game_ids[self.store_frequency:]
+            logging.info(f"Finished storing, {len(to_process_game_ids)} games remaining")
 
     def _generate_collected_data(self, game_ids: list[int]) -> CollectedData:
         possessions = []

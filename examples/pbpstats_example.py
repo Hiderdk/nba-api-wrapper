@@ -9,6 +9,7 @@ from nba_api_wrapper.api.decorators import retry_on_error
 from nba_api_wrapper.api.pbp_api_wrapper import PlayByPlayNbaApi
 from nba_api_wrapper.data_models import PosessionModel
 from nba_api_wrapper.generators.generator import GameStorer
+from nba_api_wrapper.storer.file_storer import FileStorer
 
 
 def main():
@@ -22,7 +23,7 @@ def main():
     # pbp_loader = DataNbaEnhancedPbpLoader("0021900001", source_loader)
     api = PlayByPlayNbaApi()
 
-    game_storer = GameStorer(api=api, newest_games_only=False)
+    game_storer = GameStorer(api=api, newest_games_only=False, store_frequency=25, storer=FileStorer(base_path="data"))
     game_storer.generate(league="nba", season="2019-20", season_type="Regular Season")
 
 
