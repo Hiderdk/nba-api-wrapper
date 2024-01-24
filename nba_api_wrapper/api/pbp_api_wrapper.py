@@ -9,13 +9,12 @@ from enums import Location
 from nba_api_wrapper.api._base import BaseApi
 from nba_api_wrapper.api.api_throttle import APIThrottle
 from nba_api_wrapper.api.decorators import retry_on_error
-from nba_api_wrapper.api.nba_api import NBAApi
 from nba_api_wrapper.data_models import PosessionModel, NBAPBPGamePlayerModel, NbaPbPGameTeamModel, GamePlayerModel, \
     GameModel
 from pbpstats.client import Client
-from nba_api.stats.endpoints import BoxScoreTraditionalV3, BoxScoreAdvancedV3, BoxScoreTraditionalV2, BoxScoreAdvancedV2
+from nba_api.stats.endpoints import BoxScoreAdvancedV3, BoxScoreTraditionalV2
 
-api_throttle = APIThrottle(interval_seconds=35, max_calls_per_interval=5)
+api_throttle = APIThrottle(interval_seconds=25, max_calls_per_interval=6)
 
 
 class PlayByPlayNbaApi(BaseApi):
@@ -99,8 +98,6 @@ class PlayByPlayNbaApi(BaseApi):
             logging.warning(f"GameId {game_id} TeamHasBackToBackPossessionsException")
             nba_api_game = BoxScoreTraditionalV2(game_id=game_id)
             self._game_id_nba_api_games[game_id] = nba_api_game.get_data_frames()
-        nba_api_game = BoxScoreTraditionalV2(game_id=game_id)
-        self._game_id_nba_api_games[game_id] = nba_api_game.get_data_frames()
 
         self._adv_game = BoxScoreAdvancedV3(game_id=game_id)
         if self._adv_game is not None:
@@ -314,7 +311,7 @@ class PlayByPlayNbaApi(BaseApi):
             lineup_offense_id = None
             lineup_defense_id = None
             for posession_stat in possession.possession_stats:
-                if "Off" in posession_stat['stat_key'] or 'Bad Pass' in posession_stat['stat_key']:
+                if "Off" in posession_stat['stat_key'] or 'BadPass' in posession_stat['stat_key'] or 'Missed' in posession_stat['stat_key']:
                     team_id_offense = posession_stat['team_id']
                     team_id_defense = posession_stat['opponent_team_id']
                     lineup_offense = tuple(posession_stat['lineup_id'].split("-"))
