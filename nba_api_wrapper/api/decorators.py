@@ -2,15 +2,14 @@ import json
 import time
 
 import requests
-
-
+from requests import HTTPError
 
 
 def retry_on_error(func):
     def wrapper(*args, **kwargs):
         json_decode_delay = 20
         read_time_out_delay = 60
-        retry_attempts = 1
+        retry_attempts = 2
         attempts = 0
         while attempts <= retry_attempts:
             try:
@@ -30,4 +29,19 @@ def retry_on_error(func):
                 else:
                     print(f"Max retry attempts reached. Failing after {retry_attempts} attempts.")
                     raise
+
+            except requests.exceptions.ConnectionError:
+                if attempts < retry_attempts:
+                    print(
+                        f"Read Timeout encountered. Retrying attempt {attempts + 1} in {read_time_out_delay} seconds...")
+                    time.sleep(read_time_out_delay)
+                    attempts += 1
+
+            except HTTPError:
+                if attempts < retry_attempts:
+                    print(
+                        f"Read Timeout encountered. Retrying attempt {attempts + 1} in {read_time_out_delay} seconds...")
+                    time.sleep(read_time_out_delay)
+                    attempts += 1
+
     return wrapper

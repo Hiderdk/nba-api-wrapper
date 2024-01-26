@@ -13,18 +13,13 @@ from nba_api_wrapper.storer.file_storer import FileStorer
 
 
 def main():
-    settings = {
-        "Games": {"source": "web", "data_provider": "stats_nba"},
-        "Boxscore": {"source": "web", "data_provider": "stats_nba"},
-        "Possessions": {"source": "web", "data_provider": "stats_nba"},
-    }
-    source_loader = DataNbaEnhancedPbpWebLoader()
+
 
     # pbp_loader = DataNbaEnhancedPbpLoader("0021900001", source_loader)
     api = PlayByPlayNbaApi()
 
-    game_storer = GameStorer(api=api, newest_games_only=False, store_frequency=25, storer=FileStorer(base_path="data"))
-    game_storer.generate(league="nba", season="2019-20", season_type="Regular Season")
+    game_storer = GameStorer(api=api, newest_games_only=True, store_frequency=10, storer=FileStorer(base_path="data"))
+    game_storer.generate(league="nba", season="2020-21", season_type="Regular Season")
 
 
 if __name__ == '__main__':

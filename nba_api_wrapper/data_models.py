@@ -172,6 +172,20 @@ class PosessionModel:
     POINTS_OFFENSE = "points_offense"
     LINEUP_ID_OFFENSE = "lineup_id_offense"
     LINEUP_ID_DEFENSE = "lineup_id_defense"
+    THREE_POINTERS_MADE = "three_pointers_made"
+    THREE_POINTERS_ATTEMPTED = "three_pointers_arc_attempted"
+    TWO_POINTERS_MADE = "two_pointers_made"
+    TWO_POINTERS_ATTEMPTED = "two_pointers_attempted"
+    FREE_THROWS_MADE = "free_throws_made"
+    FREE_THROWS_ATTEMPTED = "free_throws_attempted"
+    PLUS_MINUS = "plus_minus"
+    BLOCKS = "blocks"
+    STEALS = "steals"
+    ASSISTS = "assists"
+    OFFENSIVE_REBOUNDS = "offensive_rebounds"
+    DEFENSIVE_REBOUNDS = "defensive_rebounds"
+    TURNOVERS = "turnovers"
+    PERIOD = "period"
 
 
 @dataclass

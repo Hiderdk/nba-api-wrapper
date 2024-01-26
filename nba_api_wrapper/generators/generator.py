@@ -111,10 +111,10 @@ class GameStorer():
                 raise ValueError
 
         return CollectedData(
-            possessions=pd.concat(possessions) if possessions else [],
-            game_teams=pd.concat(game_teams) if game_teams else [],
-            game_players=pd.concat(game_players) if game_players else [],
-            game=pd.concat(games) if games else [],
+            possessions=pd.concat(possessions) if possessions else None,
+            game_teams=pd.concat(game_teams) if game_teams else None,
+            game_players=pd.concat(game_players) if game_players else None,
+            game=pd.concat(games) if games else None,
         )
 
     def _generated_transformed_boxscore(
@@ -132,62 +132,4 @@ class GameStorer():
             id=game_id,
             game_players=game_players,
             game_teams=game_teams,
-            game=game
-
-        )
-
-    def _generate_play_by_play(self, game_id: int, home_team_id: int, away_team_id: int,
-                               lineups: pd.DataFrame) -> PlayByPlay:
-        play_by_plays = self.api.get_play_by_play_by_game_id(game_id=game_id)
-        play_by_plays = (
-            play_by_plays.assign(
-                MINUTES=play_by_plays['PCTIMESTRING'].str.split(":").str[0].astype(int),
-                SECONDS=play_by_plays['PCTIMESTRING'].str.split(":").str[1].astype(int)
-            )
-            .assign(SECONDS_REMAINING=lambda x: x['MINUTES'] * 60 + x['SECONDS'])
-            .assign(
-                OVERTIME_PERIODS=(play_by_plays['PERIOD'] - 4).clip(lower=0),
-                BASE_SECONDS=play_by_plays['PERIOD'].clip(upper=4) * 12 * 60,
-                OVERTIME_SECONDS=lambda x: x['OVERTIME_PERIODS'] * 5 * 60
-            )
-            .assign(
-                SECONDS_PLAYED=lambda x: np.where(
-                    play_by_plays['PERIOD'] > 4,
-                    4 * 12 * 60 + x['OVERTIME_SECONDS'] - x['SECONDS_REMAINING'],
-                    x['BASE_SECONDS'] - x['SECONDS_REMAINING']
-                )
-            )
-            .drop(['MINUTES', 'SECONDS', 'SECONDS_REMAINING', 'OVERTIME_PERIODS', 'BASE_SECONDS', 'OVERTIME_SECONDS',
-                   'PCTIMESTRING'], axis=1)
-        )
-
-        team_rotations = self.api.get_rotations_by_game_id(game_id=game_id)
-        for idx, rotation in enumerate(team_rotations):
-            team_rotations[idx][RN.IN_TIME_SECONDS_PLAYED] = team_rotations[idx][RN.IN_TIME_REAL] / 10
-            team_rotations[idx][RN.OUT_TIME_SECONDS_PLAYED] = team_rotations[idx][RN.OUT_TIME_REAL] / 10
-        inplay_lineups, lineups = generate_inplay_lineups(team_rotations=team_rotations, lineups=lineups)
-        shot_plays = generate_shot_plays(play_by_plays=play_by_plays, inplay_lineups=inplay_lineups)
-        possession_attempts, play_by_plays = generate_possession_attempts(play_by_plays=play_by_plays,
-                                                                          inplay_lineups=inplay_lineups,
-                                                                          home_team_id=home_team_id,
-                                                                          away_team_id=away_team_id)
-
-        possessions = generate_possession_from_attempts(possession_attempts=possession_attempts)
-
-        defense_player_play_by_plays = generate_defense_player_play_by_plays(play_by_plays=play_by_plays,
-                                                                             possessions=possessions, lineups=lineups)
-
-        offense_player_play_by_plays = generate_offense_player_play_by_plays(play_by_plays=play_by_plays,
-                                                                             possessions=possessions, lineups=lineups)
-
-        return PlayByPlay(
-            team_rotations=team_rotations,
-            inplay_lineups=inplay_lineups,
-            play_by_plays=play_by_plays,
-            shot_plays=shot_plays,
-            possessions=possessions,
-            possession_attempts=possession_attempts,
-            offense_player_play_by_plays=offense_player_play_by_plays,
-            defense_player_play_by_plays=defense_player_play_by_plays,
-            lineups=lineups
-        )
+            game=game)

@@ -4,6 +4,8 @@ from typing import Any, Union
 import pandas as pd
 import pendulum
 from pbpstats.data_loader.stats_nba.possessions.loader import TeamHasBackToBackPossessionsException
+from pbpstats.resources.enhanced_pbp import InvalidNumberOfStartersException
+from pbpstats.resources.enhanced_pbp.rebound import EventOrderError
 
 from enums import Location
 from nba_api_wrapper.api._base import BaseApi
@@ -67,6 +69,8 @@ class PlayByPlayNbaApi(BaseApi):
         return game_ids
 
     @api_throttle
+    @api_throttle
+    @retry_on_error
     def get_game_team_by_game_id(self, game_id: int) -> pd.DataFrame:
 
         game_team_data = {
@@ -94,7 +98,7 @@ class PlayByPlayNbaApi(BaseApi):
             client = Client(game_settings)
             game = client.Game(game_id=game_id)
             self._game_id_to_final_games[game_id] = game
-        except TeamHasBackToBackPossessionsException:
+        except (TeamHasBackToBackPossessionsException, EventOrderError, InvalidNumberOfStartersException):
             logging.warning(f"GameId {game_id} TeamHasBackToBackPossessionsException")
             nba_api_game = BoxScoreTraditionalV2(game_id=game_id)
             self._game_id_nba_api_games[game_id] = nba_api_game.get_data_frames()
@@ -232,7 +236,8 @@ class PlayByPlayNbaApi(BaseApi):
                 game_player_data[NBAPBPGamePlayerModel.PLAYER_ID].append(player['player_id'])
                 game_player_data[NBAPBPGamePlayerModel.PLAYER_NAME].append(player['name'])
                 game_player_data[NBAPBPGamePlayerModel.START_POSITION].append(player['start_position'])
-                game_player_data[NBAPBPGamePlayerModel.MINUTES].append(player['min'])
+                game_player_data[NBAPBPGamePlayerModel.MINUTES].append(
+                    float(player['min'].split(":")[0]) + float(player['min'].split(":")[1]) / 60)
                 game_player_data[NBAPBPGamePlayerModel.POINTS].append(player['pts'])
                 game_player_data[NBAPBPGamePlayerModel.THREE_POINTERS_MADE].append(player['fg3m'])
                 game_player_data[NBAPBPGamePlayerModel.THREE_POINTERS_ATTEMPTED].append(player['fg3a'])
@@ -248,7 +253,6 @@ class PlayByPlayNbaApi(BaseApi):
                 game_player_data[NBAPBPGamePlayerModel.DEFENSIVE_REBOUNDS].append(player['dreb'])
                 game_player_data[NBAPBPGamePlayerModel.TURNOVERS].append(player['to'])
                 game_player_data[NBAPBPGamePlayerModel.FOULS].append(player['pf'])
-
 
         for player_id in game_player_data[NBAPBPGamePlayerModel.PLAYER_ID]:
             if self._adv_game is not None:
@@ -279,10 +283,6 @@ class PlayByPlayNbaApi(BaseApi):
     @retry_on_error
     def get_possessions_by_game_id(self, game_id: str):
 
-        game_settings = {
-            "Possessions": {"source": "web", "data_provider": "stats_nba"},
-        }
-        client = Client(game_settings)
         game = self._game_id_to_final_games[game_id]
 
         possessions_data: dict[PosessionModel, list[Any]] = {
@@ -296,6 +296,14 @@ class PlayByPlayNbaApi(BaseApi):
             PosessionModel.LINEUP_DEFENSE: [],
             PosessionModel.LINEUP_ID_OFFENSE: [],
             PosessionModel.LINEUP_ID_DEFENSE: [],
+            PosessionModel.PERIOD: [],
+            PosessionModel.FREE_THROWS_MADE: [],
+            PosessionModel.FREE_THROWS_ATTEMPTED: [],
+            PosessionModel.TWO_POINTERS_MADE: [],
+            PosessionModel.TWO_POINTERS_ATTEMPTED: [],
+            PosessionModel.THREE_POINTERS_MADE: [],
+            PosessionModel.THREE_POINTERS_ATTEMPTED: [],
+
         }
 
         for possession in game.possessions.items:
@@ -310,8 +318,24 @@ class PlayByPlayNbaApi(BaseApi):
             lineup_defense = None
             lineup_offense_id = None
             lineup_defense_id = None
+
+            two_pointer_attempts = 0
+            three_pointer_attempts = 0
+            free_throw_attempts = 0
+            free_throw_made = 0
+            arc_three_pointer_attempts = 0
+            corner_three_pointer_attempts = 0
+            two_pointer_made = 0
+            three_pointer_made = 0
+
+            for event in possession.events:
+                if 'Free Throw' in event:
+                    free_throw_attempts += 1
+
             for posession_stat in possession.possession_stats:
-                if "Off" in posession_stat['stat_key'] or 'BadPass' in posession_stat['stat_key'] or 'Missed' in posession_stat['stat_key']:
+                if "Off" in posession_stat['stat_key'] or 'BadPass' in posession_stat['stat_key'] or 'Missed' in \
+                        posession_stat['stat_key'] or 'Turnover' in posession_stat['stat_key'] or 'ShotDistance' in \
+                        posession_stat['stat_key']:
                     team_id_offense = posession_stat['team_id']
                     team_id_defense = posession_stat['opponent_team_id']
                     lineup_offense = tuple(posession_stat['lineup_id'].split("-"))
@@ -324,17 +348,30 @@ class PlayByPlayNbaApi(BaseApi):
                     lineup_offense_id = '_'.join(map(str, lineup_offense))
                     lineup_defense_id = '_'.join(map(str, lineup_defense))
 
+
                 elif posession_stat['stat_key'] == 'PlusMinus':
                     if posession_stat['stat_value'] > 0:
                         team_id_points[posession_stat['team_id']] = posession_stat['stat_value']
                         team_id_points[posession_stat['opponent_team_id']] = 0
 
+                    if posession_stat['stat_value'] == 1:
+                        free_throw_made += 1
+                    elif posession_stat['stat_value'] == 2:
+                        two_pointer_made += 1
+                    elif posession_stat['stat_value'] == 3:
+                        three_pointer_made += 1
+
+
+                elif posession_stat['stat_key'] == "Total2ptShotDistance":
+                    two_pointer_attempts += 1
+
+                elif posession_stat['stat_key'] == "Total3ptShotDistance":
+                    three_pointer_attempts += 1
+
             if team_id_offense in team_id_points:
                 points_offense = team_id_points[team_id_offense]
 
             if lineup_offense is None or lineup_defense is None:
-                if len(possession.possession_stats) > 1:
-                    h = 2
                 continue
 
             possessions_data[PosessionModel.TEAM_ID_OFFENSE].append(team_id_offense)
@@ -347,13 +384,23 @@ class PlayByPlayNbaApi(BaseApi):
             possessions_data[PosessionModel.LINEUP_DEFENSE].append(tuple(lineup_defense))
             possessions_data[PosessionModel.LINEUP_ID_OFFENSE].append(lineup_offense_id)
             possessions_data[PosessionModel.LINEUP_ID_DEFENSE].append(lineup_defense_id)
+            possessions_data[PosessionModel.PERIOD].append(possession.period)
+            possessions_data[PosessionModel.THREE_POINTERS_ATTEMPTED].append(three_pointer_attempts)
+            possessions_data[PosessionModel.TWO_POINTERS_ATTEMPTED].append(two_pointer_attempts)
+            possessions_data[PosessionModel.THREE_POINTERS_MADE].append(three_pointer_made)
+            possessions_data[PosessionModel.TWO_POINTERS_MADE].append(two_pointer_made)
+
         return pd.DataFrame.from_dict(possessions_data)
 
     def get_game_by_game_id(self, game_id: Union[str, int]) -> pd.DataFrame:
 
-        game_data = self._game_id_to_final_games[game_id]
-        minutes = float(game_data.boxscore.team_items[0]['min'].split(":")[0]) + float(
-            game_data.boxscore.team_items[0]['min'].split(":")[1]) / 60
+        if game_id in self._game_id_nba_api_games:
+            minutes = float(self._game_id_nba_api_games[game_id][1]['MIN'].iloc[0].split(":")[0]) + float(
+                self._game_id_nba_api_games[game_id][1]['MIN'].iloc[0].split(":")[1]) / 60
+        else:
+            game_data = self._game_id_to_final_games[game_id]
+            minutes = float(game_data.boxscore.team_items[0]['min'].split(":")[0]) + float(
+                game_data.boxscore.team_items[0]['min'].split(":")[1]) / 60
 
         game: dict[GameModel, list[Any]] = {
             GameModel.GAME_ID: [game_id],

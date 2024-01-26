@@ -55,8 +55,8 @@ class PlayByPlay:
 
 @dataclass
 class CollectedData:
-    possessions: [pd.DataFrame]  = None
-    game_teams: [pd.DataFrame] = None
-    game_players: [pd.DataFrame] = None
-    game: [pd.DataFrame]  = None
+    possessions: Optional[pd.DataFrame]  = None
+    game_teams: Optional[pd.DataFrame] = None
+    game_players: Optional[pd.DataFrame] = None
+    game: Optional[pd.DataFrame]  = None
 

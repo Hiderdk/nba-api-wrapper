@@ -19,21 +19,24 @@ class FileStorer(Storer):
 
         if os.path.exists(os.path.join(self.base_path, "game.pickle")):
             games = pd.read_pickle(os.path.join(self.base_path, "game.pickle"))
-            games = pd.concat([games, collected_data.game])
+            if collected_data.game is not None:
+                games = pd.concat([games, collected_data.game])
             games = games.drop_duplicates()
         else:
             games = collected_data.game
 
         if os.path.exists(os.path.join(self.base_path, "game_player.pickle")):
             game_players = pd.read_pickle(os.path.join(self.base_path, "game_player.pickle"))
-            game_players = pd.concat([game_players, collected_data.game_players])
+            if collected_data.game_players is not None:
+                game_players = pd.concat([game_players, collected_data.game_players])
             game_players = game_players.drop_duplicates(keep='last')
         else:
             game_players = collected_data.game_players
 
         if os.path.exists(os.path.join(self.base_path, "game_team.pickle")):
             game_teams = pd.read_pickle(os.path.join(self.base_path, "game_team.pickle"))
-            game_teams = pd.concat([game_teams, collected_data.game_teams])
+            if collected_data.game_teams is not None:
+                game_teams = pd.concat([game_teams, collected_data.game_teams])
             game_teams = game_teams.drop_duplicates(keep='last')
         else:
             game_teams = collected_data.game_teams
@@ -42,15 +45,21 @@ class FileStorer(Storer):
         if os.path.exists(os.path.join(self.base_path, "possessions.pickle")):
 
             possessions = pd.read_pickle(os.path.join(self.base_path, "possessions.pickle"))
-            possessions = pd.concat([possessions, collected_data.possessions])
+            if collected_data.possessions is not None:
+                possessions = pd.concat([possessions, collected_data.possessions])
             possessions = possessions.drop_duplicates(keep='last')
         else:
             possessions = collected_data.possessions
 
-        possessions.to_pickle(os.path.join(self.base_path, "possessions.pickle"))
-        game_players.to_pickle(os.path.join(self.base_path, "game_player.pickle"))
-        game_teams.to_pickle(os.path.join(self.base_path, "game_team.pickle"))
-        games.to_pickle(os.path.join(self.base_path, "game.pickle"))
+        if possessions is not None:
+            possessions.to_pickle(os.path.join(self.base_path, "possessions.pickle"))
+        if game_players is not None:
+            game_players.to_pickle(os.path.join(self.base_path, "game_player.pickle"))
+
+        if game_teams is not None:
+            game_teams.to_pickle(os.path.join(self.base_path, "game_team.pickle"))
+        if games is not None:
+            games.to_pickle(os.path.join(self.base_path, "game.pickle"))
 
 
     def load_lineups(self) -> pd.DataFrame:
