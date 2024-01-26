@@ -36,12 +36,20 @@ class GameStorer():
                  storer: Storer = FileStorer(),
                  store_frequency: int = 20,
                  newest_games_only: bool = False,
+                 process_game: bool = True,
+                 process_game_team: bool = True,
+                 process_game_player: bool = True,
+                 process_possession: bool = True,
                  ):
 
         self.store_frequency = store_frequency
         self.storer = storer
         self.api = api
         self.newest_games_only = newest_games_only
+        self.process_game = process_game
+        self.process_game_team = process_game_team
+        self.process_game_player = process_game_player
+        self.process_possession = process_possession
 
     def generate(self, min_date: Optional[pendulum.Date] = None, max_date: Optional[pendulum.Date] = None,
                  **season_data) -> None:
@@ -62,7 +70,10 @@ class GameStorer():
 
         if self.newest_games_only:
             stored_games = self.storer.load_games()
-            stored_game_ids = stored_games[GameModel.GAME_ID].unique().tolist()
+            if len(stored_games) > 0:
+                stored_game_ids = stored_games[GameModel.GAME_ID].unique().tolist()
+            else:
+                stored_game_ids = []
             to_process_game_ids = [game_id for game_id in game_ids if game_id not in stored_game_ids]
         else:
             to_process_game_ids = game_ids
@@ -84,31 +95,36 @@ class GameStorer():
         for game_id in game_ids:
             print(f"processing gameid {game_id}")
 
-            try:
-                game_team = self.api.get_game_team_by_game_id(game_id)
-                game_teams.append(game_team)
-            except Exception as e:
-                logging.warning(f"gameid {game_id} failed to get boxscore by gameid, error: {e}")
-                raise ValueError
+            if self.process_game:
+                try:
+                    game_team = self.api.get_game_team_by_game_id(game_id)
+                    game_teams.append(game_team)
+                except Exception as e:
+                    logging.warning(f"gameid {game_id} failed to get boxscore by gameid, error: {e}")
+                    raise ValueError
 
-            try:
-                game_player = self.api.get_game_player_by_game_id(game_id)
-                game_players.append(game_player)
-            except Exception as e:
-                logging.warning(f"gameid {game_id} failed to get boxscore by gameid, error: {e})")
-                raise ValueError
-            try:
-                possession = self.api.get_possessions_by_game_id(game_id=game_id)
-                possessions.append(possession)
-            except Exception as e:
-                logging.warning(f"gameid {game_id} failed to get possessions by gameid, error: {e}")
+            if self.process_game_player:
+                try:
+                    game_player = self.api.get_game_player_by_game_id(game_id)
+                    game_players.append(game_player)
+                except Exception as e:
+                    logging.warning(f"gameid {game_id} failed to get boxscore by gameid, error: {e})")
+                    raise ValueError
 
-            try:
-                game = self.api.get_game_by_game_id(game_id)
-                games.append(game)
-            except Exception as e:
-                logging.warning(f"gameid {game_id} failed to get boxscore by gameid, error: {e})")
-                raise ValueError
+            if self.process_possession:
+                try:
+                    possession = self.api.get_possessions_by_game_id(game_id=game_id)
+                    possessions.append(possession)
+                except Exception as e:
+                    logging.warning(f"gameid {game_id} failed to get possessions by gameid, error: {e}")
+
+            if self.process_game:
+                try:
+                    game = self.api.get_game_by_game_id(game_id)
+                    games.append(game)
+                except Exception as e:
+                    logging.warning(f"gameid {game_id} failed to get boxscore by gameid, error: {e})")
+                    raise ValueError
 
         return CollectedData(
             possessions=pd.concat(possessions) if possessions else None,

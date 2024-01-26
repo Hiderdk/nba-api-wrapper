@@ -283,7 +283,17 @@ class PlayByPlayNbaApi(BaseApi):
     @retry_on_error
     def get_possessions_by_game_id(self, game_id: str):
 
-        game = self._game_id_to_final_games[game_id]
+        if game_id not in self._game_id_to_final_games:
+            game_settings = {
+                "Possessions": {"source": "web", "data_provider": "stats_nba"},
+            }
+
+            client = Client(game_settings)
+            game = client.Game(game_id=game_id)
+            self._game_id_to_final_games[game_id] = game
+
+        else:
+            game = self._game_id_to_final_games[game_id]
 
         possessions_data: dict[PosessionModel, list[Any]] = {
             PosessionModel.TEAM_ID_OFFENSE: [],
