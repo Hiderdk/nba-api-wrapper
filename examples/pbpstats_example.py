@@ -19,7 +19,8 @@ def main():
     api = PlayByPlayNbaApi()
 
     game_storer = GameStorer(api=api, newest_games_only=True, store_frequency=10, storer=FileStorer(base_path="data"))
-    game_storer.generate(league="nba", season="2020-21", season_type="Regular Season")
+    for season in ["2023-24", "2022-23", "2021-22"]:
+        game_storer.generate(league="nba", season=season, season_type="Regular Season")
 
 
 if __name__ == '__main__':

@@ -323,14 +323,15 @@ class PlayByPlayNbaApi(BaseApi):
             three_pointer_attempts = 0
             free_throw_attempts = 0
             free_throw_made = 0
-            arc_three_pointer_attempts = 0
-            corner_three_pointer_attempts = 0
+
             two_pointer_made = 0
             three_pointer_made = 0
 
             for event in possession.events:
-                if 'Free Throw' in event:
+                if 'Free Throw' in event.description:
                     free_throw_attempts += 1
+                    if 'MISS' not in event.description:
+                        free_throw_made += 1
 
             for posession_stat in possession.possession_stats:
                 if "Off" in posession_stat['stat_key'] or 'BadPass' in posession_stat['stat_key'] or 'Missed' in \
@@ -348,18 +349,15 @@ class PlayByPlayNbaApi(BaseApi):
                     lineup_offense_id = '_'.join(map(str, lineup_offense))
                     lineup_defense_id = '_'.join(map(str, lineup_defense))
 
-
-                elif posession_stat['stat_key'] == 'PlusMinus':
+                if posession_stat['stat_key'] == 'PlusMinus':
                     if posession_stat['stat_value'] > 0:
                         team_id_points[posession_stat['team_id']] = posession_stat['stat_value']
                         team_id_points[posession_stat['opponent_team_id']] = 0
 
-                    if posession_stat['stat_value'] == 1:
-                        free_throw_made += 1
-                    elif posession_stat['stat_value'] == 2:
-                        two_pointer_made += 1
-                    elif posession_stat['stat_value'] == 3:
-                        three_pointer_made += 1
+                    if posession_stat['stat_value'] - free_throw_made == 2:
+                        two_pointer_made = 1
+                    elif posession_stat['stat_value'] - free_throw_made == 3:
+                        three_pointer_made = 1
 
 
                 elif posession_stat['stat_key'] == "Total2ptShotDistance":
@@ -374,6 +372,9 @@ class PlayByPlayNbaApi(BaseApi):
             if lineup_offense is None or lineup_defense is None:
                 continue
 
+            if points_offense != free_throw_made + three_pointer_made * 3 + two_pointer_made * 2:
+                h = 2
+
             possessions_data[PosessionModel.TEAM_ID_OFFENSE].append(team_id_offense)
             possessions_data[PosessionModel.TEAM_ID_DEFENSE].append(team_id_defense)
             possessions_data[PosessionModel.GAME_ID].append(game_id)
@@ -385,10 +386,12 @@ class PlayByPlayNbaApi(BaseApi):
             possessions_data[PosessionModel.LINEUP_ID_OFFENSE].append(lineup_offense_id)
             possessions_data[PosessionModel.LINEUP_ID_DEFENSE].append(lineup_defense_id)
             possessions_data[PosessionModel.PERIOD].append(possession.period)
-            possessions_data[PosessionModel.THREE_POINTERS_ATTEMPTED].append(three_pointer_attempts)
             possessions_data[PosessionModel.TWO_POINTERS_ATTEMPTED].append(two_pointer_attempts)
-            possessions_data[PosessionModel.THREE_POINTERS_MADE].append(three_pointer_made)
             possessions_data[PosessionModel.TWO_POINTERS_MADE].append(two_pointer_made)
+            possessions_data[PosessionModel.THREE_POINTERS_ATTEMPTED].append(three_pointer_attempts)
+            possessions_data[PosessionModel.THREE_POINTERS_MADE].append(three_pointer_made)
+            possessions_data[PosessionModel.FREE_THROWS_ATTEMPTED].append(free_throw_attempts)
+            possessions_data[PosessionModel.FREE_THROWS_MADE].append(free_throw_made)
 
         return pd.DataFrame.from_dict(possessions_data)
 
