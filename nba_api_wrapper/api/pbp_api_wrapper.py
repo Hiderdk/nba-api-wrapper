@@ -206,12 +206,14 @@ class PlayByPlayNbaApi(BaseApi):
 
         if game_id in self._game_id_nba_api_games:
             for _, row in self._game_id_nba_api_games[game_id][0].iterrows():
+                minutes = float(row.split(":")[0]) + float(row.split(":")[1]) / 60
+
                 game_player_data[NBAPBPGamePlayerModel.GAME_ID].append(game_id)
                 game_player_data[NBAPBPGamePlayerModel.TEAM_ID].append(row['TEAM_ID'])
                 game_player_data[NBAPBPGamePlayerModel.PLAYER_ID].append(row['PLAYER_ID'])
                 game_player_data[NBAPBPGamePlayerModel.PLAYER_NAME].append(row['PLAYER_NAME'])
                 game_player_data[NBAPBPGamePlayerModel.START_POSITION].append(row['START_POSITION'])
-                game_player_data[NBAPBPGamePlayerModel.MINUTES].append(row['MIN'])
+                game_player_data[NBAPBPGamePlayerModel.MINUTES].append(minutes)
                 game_player_data[NBAPBPGamePlayerModel.POINTS].append(row['PTS'])
                 game_player_data[NBAPBPGamePlayerModel.THREE_POINTERS_MADE].append(row['FG3M'])
                 game_player_data[NBAPBPGamePlayerModel.THREE_POINTERS_ATTEMPTED].append(row['FG3A'])
@@ -338,10 +340,20 @@ class PlayByPlayNbaApi(BaseApi):
             three_pointer_made = 0
 
             for event in possession.events:
-                if 'Free Throw' in event.description:
-                    free_throw_attempts += 1
-                    if 'MISS' not in event.description:
-                        free_throw_made += 1
+                # check if event has attribute shot_value
+                if hasattr(event, 'shot_value'):
+                    if event.shot_value == 2:
+                        two_pointer_attempts += 1
+                        if event.is_made:
+                            two_pointer_made += 1
+                    elif event.shot_value == 3:
+                        three_pointer_attempts += 1
+                        if event.is_made:
+                            three_pointer_made += 1
+                    elif event.shot_value == 1:
+                        free_throw_attempts += 1
+                        if event.is_made:
+                            free_throw_made += 1
 
             for posession_stat in possession.possession_stats:
                 if "Off" in posession_stat['stat_key'] or 'BadPass' in posession_stat['stat_key'] or 'Missed' in \
@@ -359,32 +371,10 @@ class PlayByPlayNbaApi(BaseApi):
                     lineup_offense_id = '_'.join(map(str, lineup_offense))
                     lineup_defense_id = '_'.join(map(str, lineup_defense))
 
-                if posession_stat['stat_key'] == 'PlusMinus':
-                    if posession_stat['stat_value'] > 0:
-                        team_id_points[posession_stat['team_id']] = posession_stat['stat_value']
-                        team_id_points[posession_stat['opponent_team_id']] = 0
-
-                    if posession_stat['stat_value'] - free_throw_made == 2:
-                        two_pointer_made = 1
-                    elif posession_stat['stat_value'] - free_throw_made == 3:
-                        three_pointer_made = 1
-
-
-                elif posession_stat['stat_key'] == "Total2ptShotDistance":
-                    two_pointer_attempts += 1
-
-                elif posession_stat['stat_key'] == "Total3ptShotDistance":
-                    three_pointer_attempts += 1
-
-            if team_id_offense in team_id_points:
-                points_offense = team_id_points[team_id_offense]
-
             if lineup_offense is None or lineup_defense is None:
                 continue
 
-            if points_offense != free_throw_made + three_pointer_made * 3 + two_pointer_made * 2:
-                h = 2
-
+            points_offense = three_pointer_made * 3 + two_pointer_made * 2 + free_throw_made
             possessions_data[PosessionModel.TEAM_ID_OFFENSE].append(team_id_offense)
             possessions_data[PosessionModel.TEAM_ID_DEFENSE].append(team_id_defense)
             possessions_data[PosessionModel.GAME_ID].append(game_id)

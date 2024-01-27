@@ -20,12 +20,12 @@ def main():
 
     game_storer = GameStorer(
         api=api,
-        newest_games_only=False,
+        newest_games_only=True,
         store_frequency=10,
         storer=FileStorer(base_path="data"),
-        process_game = False,
-        process_game_team = False,
-        process_game_player = False,
+      #  process_game = False,
+      #  process_game_team = False,
+      #  process_game_player = False,
 
                              )
     for season in ["2023-24", "2022-23", "2021-22"]:
