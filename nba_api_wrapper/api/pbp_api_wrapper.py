@@ -206,7 +206,10 @@ class PlayByPlayNbaApi(BaseApi):
 
         if game_id in self._game_id_nba_api_games:
             for _, row in self._game_id_nba_api_games[game_id][0].iterrows():
-                minutes = float(row.split(":")[0]) + float(row.split(":")[1]) / 60
+                if row["MIN"] == None:
+                    minutes = 0
+                else:
+                    minutes = float(row["MIN"].split(":")[0]) + float(row["MIN"].split(":")[1]) / 60
 
                 game_player_data[NBAPBPGamePlayerModel.GAME_ID].append(game_id)
                 game_player_data[NBAPBPGamePlayerModel.TEAM_ID].append(row['TEAM_ID'])
