@@ -19,7 +19,7 @@ def create_gp_poss():
                                   left_on=["game_id", "lineup_id_offense", "lineup_id_defense", "player_id"],
                                   right_on=["game_id", "lineup_id_defense", "lineup_id_offense", "player_id"],
                                   how="outer"
-                                  ).reset_index()
+                                  ).reset_index(drop=True)
 
     exploded['lineup_id'] = exploded['lineup_id_offense_x']
     exploded['lineup_id'] = exploded['lineup_id'].fillna(exploded['lineup_id_defense_y'])
@@ -34,6 +34,8 @@ def create_gp_poss():
     exploded['points_for'] = exploded['points_for'].fillna(0)
     exploded['minutes_offense'] = exploded['minutes_offense'].fillna(0)
     exploded['minutes_defense'] = exploded['minutes_defense'].fillna(0)
+
+    exploded.to_pickle("data/game_player_rotations.pickle")
 
 
 if __name__ == '__main__':

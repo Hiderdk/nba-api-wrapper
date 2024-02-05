@@ -28,8 +28,8 @@ def main():
       #  process_game_player = False,
 
                              )
-    for season in ["2023-24", "2022-23", "2021-22"]:
-        game_storer.generate(league="nba", season=season, season_type="Regular Season")
+    for season in ["2018-19", "2019-20"]:
+        game_storer.generate(league="nba", season=season, season_type="Playoffs")
 
 
 if __name__ == '__main__':
