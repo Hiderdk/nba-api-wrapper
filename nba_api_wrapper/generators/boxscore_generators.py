@@ -3,9 +3,9 @@ import logging
 import pandas as pd
 
 from nba_api_wrapper.data_models import GameTeamModel, GameModel, GamePlayerModel, LGFDataNames, BoxscoreV2Names, \
-    BoxscoreAdvV2Names, BoxscoreAdvV2TeamNames
+    BoxscoreAdvV2Names, BoxscoreAdvV2TeamNames, NbaPbPGameTeamModel
 
-GT = GameTeamModel
+GT = NbaPbPGameTeamModel
 G = GameModel
 GP = GamePlayerModel
 LGF = LGFDataNames

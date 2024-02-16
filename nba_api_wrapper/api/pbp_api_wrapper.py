@@ -98,7 +98,7 @@ class PlayByPlayNbaApi(BaseApi):
             client = Client(game_settings)
             game = client.Game(game_id=game_id)
             self._game_id_to_final_games[game_id] = game
-        except (TeamHasBackToBackPossessionsException, EventOrderError, InvalidNumberOfStartersException):
+        except (TeamHasBackToBackPossessionsException, EventOrderError, InvalidNumberOfStartersException, AttributeError):
             logging.warning(f"GameId {game_id} TeamHasBackToBackPossessionsException")
             nba_api_game = BoxScoreTraditionalV2(game_id=game_id)
             self._game_id_nba_api_games[game_id] = nba_api_game.get_data_frames()
@@ -162,12 +162,14 @@ class PlayByPlayNbaApi(BaseApi):
         for team_id in game_team_data[NbaPbPGameTeamModel.TEAM_ID]:
 
             if self._adv_game is not None and len(adv_game_dfs) > 1:
-                adv_game_team = adv_game_dfs[0] if adv_game_dfs[0]['teamId'].iloc[0] == team_id else \
-                    adv_game_dfs[1]
-                game_team_data[NbaPbPGameTeamModel.PIE].append(adv_game_team['PIE'].iloc[0])
-                game_team_data[NbaPbPGameTeamModel.PACE].append(adv_game_team['pace'].iloc[0])
-                game_team_data[NbaPbPGameTeamModel.E_PACE].append(adv_game_team['estimatedPace'].iloc[0])
-                game_team_data[NbaPbPGameTeamModel.POSS].append(adv_game_team['possessions'].iloc[0])
+                if len(adv_game_dfs[1]) != 2:
+                    raise ValueError(f"gameid {game_id} failed to get boxscore advanced by gameid. Team count is: {len(adv_game_dfs[1])}")
+                adv_game_team = adv_game_dfs[1].iloc[0] if adv_game_dfs[1].iloc[0]['teamId'] == team_id else \
+                    adv_game_dfs[1].iloc[1]
+                game_team_data[NbaPbPGameTeamModel.PIE].append(adv_game_team['PIE'])
+                game_team_data[NbaPbPGameTeamModel.PACE].append(adv_game_team['pace'])
+                game_team_data[NbaPbPGameTeamModel.E_PACE].append(adv_game_team['estimatedPace'])
+                game_team_data[NbaPbPGameTeamModel.POSS].append(adv_game_team['possessions'])
             else:
                 game_team_data[NbaPbPGameTeamModel.PIE].append(None)
                 game_team_data[NbaPbPGameTeamModel.PACE].append(None)

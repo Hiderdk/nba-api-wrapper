@@ -5,8 +5,12 @@ import pandas as pd
 
 def gp_add():
     gp = pd.read_pickle("data/game_player.pickle")
+
+    gp = gp[gp.columns[:24]]
+
     for col in ['tp', 'possessions_defense_count', 'possessions_offense_count', 'points_for', 'points_against',
-                'team_points_for']:
+                'team_points_for', 'possessions_defense_mean_duration', 'possessions_offense_mean_duration',
+                'possessions_points_against', 'posessions_points_for', 'team_player_mins', 'opp_player_mins']:
         if col in gp.columns:
             gp = gp.drop(columns=[col])
     possessions = pd.read_pickle("data/possessions.pickle")
@@ -18,60 +22,93 @@ def gp_add():
 
     gp_rot['matchup_id'] = gp_rot['lineup_id'] + "_" + gp_rot['lineup_id_opponent']
 
-    if 'team_player_mins' not in gp.columns:
-        gp['team_player_mins'] = None
-    gp = gp.astype({'team_player_mins': 'object'})
+    gp_rot['lineup_id_list'] = gp_rot['lineup_id'].str.split("_")
+    gp_rot['lineup_id_opponent_list'] = gp_rot['lineup_id_opponent'].str.split("_")
+    gp_rot_exploded = gp_rot.explode('lineup_id_list')
+    gp_rot_exploded['lineup_id_list'] = gp_rot_exploded['lineup_id_list'].astype(int)
+    gp_rot_exploded['total_minutes'] = round(gp_rot_exploded['minutes_offense'] + gp_rot_exploded['minutes_defense'], 2)
 
-    for game_id in game_ids:
-        print(game_id)
-        player_to_team_mins = {}
-        player_to_opp_mins = {}
-        poss_game = gp_rot[gp_rot['game_id'] == game_id]
+    # Explode for opponent interactions
+    gp_rot_exploded_opponents = gp_rot.explode('lineup_id_opponent_list')
+    gp_rot_exploded_opponents['lineup_id_opponent_list'] = gp_rot_exploded_opponents['lineup_id_opponent_list'].astype(
+        int)
+    gp_rot_exploded_opponents['total_minutes'] = round(
+        gp_rot_exploded_opponents['minutes_offense'] + gp_rot_exploded_opponents['minutes_defense'], 2)
 
-        for _, row in poss_game.iterrows():
-            player_id = row['player_id']
-            player_id = int(player_id)
-            if player_id not in player_to_team_mins:
-                player_to_team_mins[player_id] = {}
-                player_to_opp_mins[player_id] = {}
+    # Aggregate total minutes for team interactions
+    team_minutes = gp_rot_exploded.groupby(['game_id', 'player_id', 'lineup_id_list'])[
+        'total_minutes'].sum().reset_index()
+    team_minutes_json = team_minutes.groupby(['game_id', 'player_id']) \
+        .apply(lambda x: x.set_index('lineup_id_list')['total_minutes'].to_dict()).reset_index(name='team_player_mins')
+    team_minutes_json['team_player_mins'] = team_minutes_json['team_player_mins'].apply(lambda x: json.dumps(x))
 
-            lineup = row['lineup_id'].split("_")
-            for team_player_id in lineup:
-                if team_player_id == player_id:
-                    continue
+    # Aggregate total minutes for opponent interactions
+    opponent_minutes = gp_rot_exploded_opponents.groupby(['game_id', 'player_id', 'lineup_id_opponent_list'])[
+        'total_minutes'].sum().reset_index()
+    opponent_minutes_json = opponent_minutes.groupby(['game_id', 'player_id']) \
+        .apply(lambda x: x.set_index('lineup_id_opponent_list')['total_minutes'].to_dict()).reset_index(
+        name='opp_player_mins')
+    opponent_minutes_json['opp_player_mins'] = opponent_minutes_json['opp_player_mins'].apply(lambda x: json.dumps(x))
 
-                if team_player_id not in player_to_team_mins[player_id]:
-                    player_to_team_mins[player_id][team_player_id] = 0
+    # Merge team and opponent JSON results
+    final_result = team_minutes_json.merge(opponent_minutes_json, on=['game_id', 'player_id'])
+    gp = gp.merge(final_result, on=['game_id', 'player_id'], how='left')
 
-                player_to_team_mins[player_id][team_player_id] += round(row['minutes_offense'] + row["minutes_defense"],
-                                                                        2)
-                player_to_team_mins[player_id][team_player_id] = round(player_to_team_mins[player_id][team_player_id],
-                                                                       2)
+    def loop_approach():
+        for game_id in game_ids:
+            print(game_id)
+            player_to_team_mins = {}
+            player_to_opp_mins = {}
+            poss_game = gp_rot[gp_rot['game_id'] == game_id]
 
-            lineup_opponent = row['lineup_id_opponent'].split("_")
-            for opp_player_id in lineup_opponent:
-                opp_player_id = int(opp_player_id)
-                if opp_player_id not in player_to_opp_mins[player_id]:
-                    player_to_opp_mins[player_id][opp_player_id] = 0
+            for _, row in poss_game.iterrows():
+                player_id = row['player_id']
+                player_id = int(player_id)
+                if player_id not in player_to_team_mins:
+                    player_to_team_mins[player_id] = {}
+                    player_to_opp_mins[player_id] = {}
 
-                player_to_opp_mins[player_id][opp_player_id] += round(row['minutes_offense'] + row["minutes_defense"],
-                                                                      2)
-                player_to_opp_mins[player_id][opp_player_id] = round(player_to_opp_mins[player_id][opp_player_id], 2)
+                lineup = row['lineup_id'].split("_")
+                for team_player_id in lineup:
+                    if team_player_id == player_id:
+                        continue
 
-        for player_id, team_player_mins in player_to_team_mins.items():
-            json_str = json.dumps(team_player_mins)
+                    if team_player_id not in player_to_team_mins[player_id]:
+                        player_to_team_mins[player_id][team_player_id] = 0
 
-            gp.loc[
-                (gp['player_id'] == player_id) &
-                (gp['game_id'] == game_id),
-                'team_player_mins'] = json_str
+                    player_to_team_mins[player_id][team_player_id] += round(
+                        row['minutes_offense'] + row["minutes_defense"],
+                        2)
+                    player_to_team_mins[player_id][team_player_id] = round(
+                        player_to_team_mins[player_id][team_player_id],
+                        2)
 
-            for player_id, opp_player_mins in player_to_opp_mins.items():
-                json_str = json.dumps(opp_player_mins)
+                lineup_opponent = row['lineup_id_opponent'].split("_")
+                for opp_player_id in lineup_opponent:
+                    opp_player_id = int(opp_player_id)
+                    if opp_player_id not in player_to_opp_mins[player_id]:
+                        player_to_opp_mins[player_id][opp_player_id] = 0
+
+                    player_to_opp_mins[player_id][opp_player_id] += round(
+                        row['minutes_offense'] + row["minutes_defense"],
+                        2)
+                    player_to_opp_mins[player_id][opp_player_id] = round(player_to_opp_mins[player_id][opp_player_id],
+                                                                         2)
+
+            for player_id, team_player_mins in player_to_team_mins.items():
+                json_str = json.dumps(team_player_mins)
+
                 gp.loc[
                     (gp['player_id'] == player_id) &
                     (gp['game_id'] == game_id),
-                    'opp_player_mins'] = json_str
+                    'team_player_mins'] = json_str
+
+                for player_id, opp_player_mins in player_to_opp_mins.items():
+                    json_str = json.dumps(opp_player_mins)
+                    gp.loc[
+                        (gp['player_id'] == player_id) &
+                        (gp['game_id'] == game_id),
+                        'opp_player_mins'] = json_str
 
     exploded = possessions.explode(['lineup_offense']).rename(columns={'lineup_offense': 'player_id'}).rename(
         columns={'points_offense': 'possessions_points_for'})
